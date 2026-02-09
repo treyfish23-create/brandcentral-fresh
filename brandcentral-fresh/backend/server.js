@@ -8,7 +8,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { Client } = require('pg');
+const { Pool } = require('pg');
 const { body, validationResult } = require('express-validator');
 const winston = require('winston');
 require('dotenv').config();
@@ -26,28 +26,33 @@ const logger = winston.createLogger({
   ),
   defaultMeta: { service: 'rollodex-api' },
   transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' })
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      )
+    })
   ],
 });
 
-// Database connection with connection pooling
-const db = new Client({
+// Database connection pool
+const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  connectionTimeoutMillis: 5000,
+  max: 20,
   idleTimeoutMillis: 30000,
-  max: 20
+  connectionTimeoutMillis: 5000,
 });
 
-// Connect to database
-db.connect().then(() => {
-  logger.info('✅ ROLLodex database connected successfully');
-}).catch(err => {
-  logger.error('❌ Database connection failed:', err);
-  process.exit(1);
-});
+// Test database connection
+pool.connect()
+  .then(client => {
+    logger.info('✅ ROLLodex database connected successfully');
+    client.release();
+  })
+  .catch(err => {
+    logger.error('❌ Database connection failed:', err);
+  });
 
 // Create uploads directory
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -126,7 +131,7 @@ app.use(limiter);
 
 // CORS
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: process.env.FRONTEND_URL || true,
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -187,7 +192,7 @@ const authenticateToken = (req, res, next) => {
 app.get('/health', async (req, res) => {
   try {
     // Test database connection
-    await db.query('SELECT NOW()');
+    const result = await pool.query('SELECT NOW()');
     
     res.json({ 
       status: 'healthy',
@@ -196,7 +201,8 @@ app.get('/health', async (req, res) => {
       environment: process.env.NODE_ENV || 'development',
       database: 'connected',
       uptime: process.uptime(),
-      version: '1.0.0'
+      version: '1.0.0',
+      dbTime: result.rows[0].now
     });
   } catch (error) {
     logger.error('Health check failed:', error);
@@ -215,7 +221,7 @@ async function initDatabase() {
     logger.info('🔧 Initializing ROLLodex database...');
 
     // Create users table
-    await db.query(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         email VARCHAR(255) UNIQUE NOT NULL,
@@ -235,29 +241,8 @@ async function initDatabase() {
       )
     `);
 
-    // Create retailers table
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS retailers (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        description TEXT,
-        industry VARCHAR(100),
-        website VARCHAR(255),
-        address TEXT,
-        city VARCHAR(100),
-        state VARCHAR(50),
-        country VARCHAR(100),
-        postal_code VARCHAR(20),
-        logo_url VARCHAR(255),
-        owner_id INTEGER REFERENCES users(id),
-        settings JSONB DEFAULT '{}',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
     // Create brands table
-    await db.query(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS brands (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
@@ -279,8 +264,29 @@ async function initDatabase() {
       )
     `);
 
+    // Create retailers table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS retailers (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        industry VARCHAR(100),
+        website VARCHAR(255),
+        address TEXT,
+        city VARCHAR(100),
+        state VARCHAR(50),
+        country VARCHAR(100),
+        postal_code VARCHAR(20),
+        logo_url VARCHAR(255),
+        owner_id INTEGER REFERENCES users(id),
+        settings JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Create brand_retailer_relationships table
-    await db.query(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS brand_retailer_relationships (
         id SERIAL PRIMARY KEY,
         brand_id INTEGER REFERENCES brands(id) ON DELETE CASCADE,
@@ -297,23 +303,8 @@ async function initDatabase() {
       )
     `);
 
-    // Create retailer_brand_notes table (encrypted private notes)
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS retailer_brand_notes (
-        id SERIAL PRIMARY KEY,
-        retailer_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        brand_id INTEGER REFERENCES brands(id) ON DELETE CASCADE,
-        note_text TEXT NOT NULL,
-        visibility VARCHAR(50) DEFAULT 'private',
-        tags TEXT[],
-        created_by INTEGER REFERENCES users(id),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
     // Create brand_products table
-    await db.query(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS brand_products (
         id SERIAL PRIMARY KEY,
         brand_id INTEGER REFERENCES brands(id) ON DELETE CASCADE,
@@ -331,7 +322,7 @@ async function initDatabase() {
     `);
 
     // Create brand_assets table
-    await db.query(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS brand_assets (
         id SERIAL PRIMARY KEY,
         brand_id INTEGER REFERENCES brands(id) ON DELETE CASCADE,
@@ -351,48 +342,8 @@ async function initDatabase() {
       )
     `);
 
-    // Create asset_permissions table
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS asset_permissions (
-        id SERIAL PRIMARY KEY,
-        asset_id INTEGER REFERENCES brand_assets(id) ON DELETE CASCADE,
-        retailer_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        permission_type VARCHAR(50) DEFAULT 'view',
-        granted_by INTEGER REFERENCES users(id),
-        granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        expires_at TIMESTAMP,
-        UNIQUE(asset_id, retailer_id)
-      )
-    `);
-
-    // Create intake_forms table
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS intake_forms (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        description TEXT,
-        fields JSONB NOT NULL,
-        is_active BOOLEAN DEFAULT true,
-        created_by INTEGER REFERENCES users(id),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create form_responses table
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS form_responses (
-        id SERIAL PRIMARY KEY,
-        form_id INTEGER REFERENCES intake_forms(id) ON DELETE CASCADE,
-        brand_id INTEGER REFERENCES brands(id) ON DELETE CASCADE,
-        responses JSONB NOT NULL,
-        submitted_by INTEGER REFERENCES users(id),
-        submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
     // Create activity_log table
-    await db.query(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS activity_log (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id),
@@ -407,7 +358,7 @@ async function initDatabase() {
     `);
 
     // Create notification_preferences table
-    await db.query(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS notification_preferences (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -422,18 +373,14 @@ async function initDatabase() {
     `);
 
     // Create indexes for better performance
-    await db.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_users_company_type ON users(company_type)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_brands_owner ON brands(owner_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_brands_industry ON brands(industry)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_relationships_brand ON brand_retailer_relationships(brand_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_relationships_retailer ON brand_retailer_relationships(retailer_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_relationships_status ON brand_retailer_relationships(status)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_assets_brand ON brand_assets(brand_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_assets_permission ON brand_assets(permission_level)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_products_brand ON brand_products(brand_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_activity_user ON activity_log(user_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_activity_entity ON activity_log(entity_type, entity_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_users_company_type ON users(company_type)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_brands_owner ON brands(owner_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_brands_industry ON brands(industry)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_relationships_brand ON brand_retailer_relationships(brand_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_relationships_retailer ON brand_retailer_relationships(retailer_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_assets_brand ON brand_assets(brand_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_products_brand ON brand_products(brand_id)');
 
     logger.info('✅ ROLLodex database tables and indexes created successfully');
     
@@ -449,7 +396,7 @@ async function initDatabase() {
 async function insertDemoData() {
   try {
     // Check if demo data exists
-    const existingUsers = await db.query('SELECT COUNT(*) FROM users');
+    const existingUsers = await pool.query('SELECT COUNT(*) FROM users');
     if (parseInt(existingUsers.rows[0].count) > 0) {
       logger.info('✅ ROLLodex demo data already exists');
       return;
@@ -459,78 +406,62 @@ async function insertDemoData() {
     const hashedPassword = await bcrypt.hash('password123', 12);
     
     // Demo retailer users
-    const retailerResult = await db.query(`
+    const retailerResult = await pool.query(`
       INSERT INTO users (email, password_hash, first_name, last_name, role, company_name, company_type, phone, title, email_verified) 
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id
     `, ['admin@freshmarket.example.com', hashedPassword, 'Sarah', 'Johnson', 'retailer_admin', 'Fresh Market Co', 'retailer', '+1-555-0123', 'Head of Procurement', true]);
 
-    const retailer2Result = await db.query(`
+    const retailer2Result = await pool.query(`
       INSERT INTO users (email, password_hash, first_name, last_name, role, company_name, company_type, phone, title, email_verified) 
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id
     `, ['buyer@urbanretail.example.com', hashedPassword, 'Michael', 'Chen', 'retailer_buyer', 'Urban Retail', 'retailer', '+1-555-0456', 'Senior Buyer', true]);
 
     // Demo brand users
-    const brandResult = await db.query(`
+    const brandResult = await pool.query(`
       INSERT INTO users (email, password_hash, first_name, last_name, role, company_name, company_type, phone, title, email_verified) 
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id
     `, ['admin@pureelements.example.com', hashedPassword, 'Emma', 'Green', 'brand_admin', 'Pure Elements', 'brand', '+1-555-0789', 'Brand Manager', true]);
 
-    const brand2Result = await db.query(`
+    const brand2Result = await pool.query(`
       INSERT INTO users (email, password_hash, first_name, last_name, role, company_name, company_type, phone, title, email_verified) 
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id
     `, ['contact@techfoods.example.com', hashedPassword, 'David', 'Kim', 'brand_admin', 'TechFoods Innovation', 'brand', '+1-555-0321', 'Sales Director', true]);
 
-    // Create retailer profiles
-    await db.query(`
-      INSERT INTO retailers (name, description, industry, website, address, city, state, country, postal_code, owner_id) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    `, ['Fresh Market Co', 'Premium grocery chain specializing in fresh, organic, and locally sourced products', 'Retail - Grocery', 'https://freshmarketco.com', '123 Market Street', 'Seattle', 'WA', 'USA', '98101', retailerResult.rows[0].id]);
-
-    await db.query(`
-      INSERT INTO retailers (name, description, industry, website, address, city, state, country, postal_code, owner_id) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    `, ['Urban Retail', 'Modern retail chain focusing on urban lifestyle products and convenience', 'Retail - Lifestyle', 'https://urbanretail.com', '456 City Avenue', 'Portland', 'OR', 'USA', '97201', retailer2Result.rows[0].id]);
-
-    // Create brand profiles with completion scores
-    const pureElementsBrand = await db.query(`
+    // Create brand profiles
+    const pureElementsBrand = await pool.query(`
       INSERT INTO brands (name, description, industry, website, address, city, state, country, postal_code, profile_completion_score, is_verified, owner_id) 
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id
     `, ['Pure Elements', 'Organic and natural food products made with sustainable practices and premium ingredients', 'Natural Foods', 'https://pureelements.com', '789 Green Valley Road', 'Boulder', 'CO', 'USA', '80301', 87, true, brandResult.rows[0].id]);
 
-    const techFoodsBrand = await db.query(`
+    const techFoodsBrand = await pool.query(`
       INSERT INTO brands (name, description, industry, website, address, city, state, country, postal_code, profile_completion_score, is_verified, owner_id) 
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id
     `, ['TechFoods Innovation', 'Next-generation food technology company creating innovative snacks and beverages', 'Food Technology', 'https://techfoods.io', '321 Innovation Drive', 'Austin', 'TX', 'USA', '73301', 78, false, brand2Result.rows[0].id]);
 
+    // Create retailer profiles
+    await pool.query(`
+      INSERT INTO retailers (name, description, industry, website, address, city, state, country, postal_code, owner_id) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `, ['Fresh Market Co', 'Premium grocery chain specializing in fresh, organic, and locally sourced products', 'Retail - Grocery', 'https://freshmarketco.com', '123 Market Street', 'Seattle', 'WA', 'USA', '98101', retailerResult.rows[0].id]);
+
     // Create brand-retailer relationships
-    await db.query(`
+    await pool.query(`
       INSERT INTO brand_retailer_relationships (brand_id, retailer_id, status, partnership_type, started_date, notes, priority, created_by) 
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     `, [pureElementsBrand.rows[0].id, retailerResult.rows[0].id, 'active', 'Preferred Vendor', '2023-08-15', 'Excellent partnership with consistent quality and delivery', 'high', retailerResult.rows[0].id]);
 
-    await db.query(`
+    await pool.query(`
       INSERT INTO brand_retailer_relationships (brand_id, retailer_id, status, partnership_type, notes, priority, created_by) 
       VALUES ($1, $2, $3, $4, $5, $6, $7)
     `, [techFoodsBrand.rows[0].id, retailer2Result.rows[0].id, 'prospective', 'New Vendor Evaluation', 'Promising new brand with innovative products', 'normal', retailer2Result.rows[0].id]);
 
-    // Add retailer private notes
-    await db.query(`
-      INSERT INTO retailer_brand_notes (retailer_id, brand_id, note_text, visibility, tags, created_by) 
-      VALUES ($1, $2, $3, $4, $5, $6)
-    `, [retailerResult.rows[0].id, pureElementsBrand.rows[0].id, 'Great margins on organic line. Consider expanding to more SKUs next quarter. Contact Emma for pricing discussion.', 'private', ['high-margin', 'organic', 'expand'], retailerResult.rows[0].id]);
-
     // Add demo products
-    await db.query(`
+    await pool.query(`
       INSERT INTO brand_products (brand_id, name, description, category, sku, price, is_active) 
       VALUES ($1, $2, $3, $4, $5, $6, $7)
     `, [pureElementsBrand.rows[0].id, 'Organic Quinoa Bowls', 'Ready-to-eat organic quinoa bowls with seasonal vegetables', 'Prepared Foods', 'PE-QB-001', 12.99, true]);
 
-    await db.query(`
-      INSERT INTO brand_products (brand_id, name, description, category, sku, price, is_active) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `, [pureElementsBrand.rows[0].id, 'Cold-Pressed Green Juice', 'Nutrient-dense green juice with kale, spinach, and apple', 'Beverages', 'PE-GJ-002', 8.49, true]);
-
-    await db.query(`
+    await pool.query(`
       INSERT INTO brand_products (brand_id, name, description, category, sku, price, is_active) 
       VALUES ($1, $2, $3, $4, $5, $6, $7)
     `, [techFoodsBrand.rows[0].id, 'Smart Protein Bars', 'AI-optimized nutrition bars with personalized macro profiles', 'Snacks', 'TF-SPB-001', 4.99, true]);
@@ -538,7 +469,7 @@ async function insertDemoData() {
     // Create notification preferences for all users
     const allUsers = [retailerResult.rows[0].id, retailer2Result.rows[0].id, brandResult.rows[0].id, brand2Result.rows[0].id];
     for (const userId of allUsers) {
-      await db.query(`
+      await pool.query(`
         INSERT INTO notification_preferences (user_id) VALUES ($1)
       `, [userId]);
     }
@@ -558,7 +489,7 @@ async function insertDemoData() {
 // Activity logging function
 async function logActivity(userId, action, entityType, entityId, metadata = null, req = null) {
   try {
-    await db.query(`
+    await pool.query(`
       INSERT INTO activity_log (user_id, action, entity_type, entity_id, metadata, ip_address, user_agent) 
       VALUES ($1, $2, $3, $4, $5, $6, $7)
     `, [
@@ -595,7 +526,7 @@ app.post('/api/auth/login', [
     const { email, password } = req.body;
     logger.info('ROLLodex login attempt', { email });
 
-    const result = await db.query('SELECT * FROM users WHERE email = $1 AND is_active = true', [email]);
+    const result = await pool.query('SELECT * FROM users WHERE email = $1 AND is_active = true', [email]);
     const user = result.rows[0];
 
     if (!user) {
@@ -617,7 +548,7 @@ app.post('/api/auth/login', [
     }
 
     // Update last login
-    await db.query('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
+    await pool.query('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
 
     const token = jwt.sign(
       { 
@@ -680,7 +611,7 @@ app.post('/api/auth/register', [
     const { email, password, firstName, lastName, companyName, companyType, phone, title } = req.body;
 
     // Check if user exists
-    const existing = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existing.rows.length > 0) {
       return res.status(400).json({ 
         error: 'An account with this email already exists',
@@ -691,7 +622,7 @@ app.post('/api/auth/register', [
     const hashedPassword = await bcrypt.hash(password, 12);
     const role = companyType === 'retailer' ? 'retailer_admin' : 'brand_admin';
 
-    const result = await db.query(`
+    const result = await pool.query(`
       INSERT INTO users (email, password_hash, first_name, last_name, role, company_name, company_type, phone, title) 
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id
     `, [email, hashedPassword, firstName, lastName, role, companyName, companyType, phone || null, title || null]);
@@ -700,19 +631,19 @@ app.post('/api/auth/register', [
 
     // Create associated retailer or brand profile
     if (companyType === 'retailer') {
-      await db.query(`
+      await pool.query(`
         INSERT INTO retailers (name, description, owner_id) 
         VALUES ($1, $2, $3)
       `, [companyName, `Retailer profile for ${companyName}`, userId]);
     } else {
-      await db.query(`
+      await pool.query(`
         INSERT INTO brands (name, description, profile_completion_score, owner_id) 
         VALUES ($1, $2, $3, $4)
       `, [companyName, `Brand profile for ${companyName}`, 25, userId]);
     }
 
     // Create notification preferences
-    await db.query(`
+    await pool.query(`
       INSERT INTO notification_preferences (user_id) VALUES ($1)
     `, [userId]);
 
@@ -760,7 +691,7 @@ app.post('/api/auth/register', [
 // USER ROUTES
 app.get('/api/users/profile', authenticateToken, async (req, res) => {
   try {
-    const result = await db.query(`
+    const result = await pool.query(`
       SELECT id, email, first_name, last_name, role, company_name, company_type, 
              phone, title, is_active, email_verified, last_login, created_at, updated_at 
       FROM users WHERE id = $1
@@ -842,7 +773,7 @@ app.get('/api/brands', authenticateToken, async (req, res) => {
     
     params.push(limit, offset);
 
-    const result = await db.query(query, params);
+    const result = await pool.query(query, params);
 
     // Get total count for pagination
     let countQuery = 'SELECT COUNT(*) FROM brands b WHERE 1=1';
@@ -861,7 +792,7 @@ app.get('/api/brands', authenticateToken, async (req, res) => {
       countParams.push(industry);
     }
 
-    const countResult = await db.query(countQuery, countParams);
+    const countResult = await pool.query(countQuery, countParams);
     const totalCount = parseInt(countResult.rows[0].count);
 
     res.json({
@@ -891,7 +822,7 @@ app.post('/api/brands/:brandId/assets', authenticateToken, upload.array('files',
     const { description, category = 'general', permission_level = 'partners_only' } = req.body;
 
     // Verify brand ownership or admin access
-    const brandResult = await db.query('SELECT owner_id FROM brands WHERE id = $1', [brandId]);
+    const brandResult = await pool.query('SELECT owner_id FROM brands WHERE id = $1', [brandId]);
     if (brandResult.rows.length === 0) {
       return res.status(404).json({ error: 'Brand not found' });
     }
@@ -910,7 +841,7 @@ app.post('/api/brands/:brandId/assets', authenticateToken, upload.array('files',
     const uploadedAssets = [];
 
     for (const file of req.files) {
-      const assetResult = await db.query(`
+      const assetResult = await pool.query(`
         INSERT INTO brand_assets (brand_id, filename, original_name, file_type, file_size, file_path, description, category, permission_level, uploaded_by) 
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *
       `, [
@@ -959,12 +890,12 @@ app.get('/api/analytics/dashboard', authenticateToken, async (req, res) => {
 
     if (req.user.role.includes('retailer')) {
       // Retailer analytics
-      const relationshipsResult = await db.query(
+      const relationshipsResult = await pool.query(
         'SELECT COUNT(*) as total, status FROM brand_retailer_relationships WHERE retailer_id = $1 GROUP BY status',
         [req.user.id]
       );
 
-      const downloadsResult = await db.query(`
+      const downloadsResult = await pool.query(`
         SELECT COUNT(*) as total_downloads
         FROM brand_assets a
         WHERE EXISTS (
@@ -974,7 +905,7 @@ app.get('/api/analytics/dashboard', authenticateToken, async (req, res) => {
       `, [req.user.id]);
 
       stats.relationships = relationshipsResult.rows.reduce((acc, row) => {
-        acc[row.status] = parseInt(row.count);
+        acc[row.status] = parseInt(row.total);
         return acc;
       }, {});
 
@@ -982,34 +913,34 @@ app.get('/api/analytics/dashboard', authenticateToken, async (req, res) => {
 
     } else if (req.user.role.includes('brand')) {
       // Brand analytics
-      const brandResult = await db.query('SELECT id FROM brands WHERE owner_id = $1', [req.user.id]);
+      const brandResult = await pool.query('SELECT id FROM brands WHERE owner_id = $1', [req.user.id]);
       
       if (brandResult.rows.length > 0) {
         const brandId = brandResult.rows[0].id;
 
-        const relationshipsResult = await db.query(
-          'SELECT COUNT(*) as count, status FROM brand_retailer_relationships WHERE brand_id = $1 GROUP BY status',
+        const relationshipsResult = await pool.query(
+          'SELECT COUNT(*) as total, status FROM brand_retailer_relationships WHERE brand_id = $1 GROUP BY status',
           [brandId]
         );
 
-        const assetsResult = await db.query(
-          'SELECT COUNT(*) as count, SUM(download_count) as total_downloads FROM brand_assets WHERE brand_id = $1',
+        const assetsResult = await pool.query(
+          'SELECT COUNT(*) as total, SUM(download_count) as total_downloads FROM brand_assets WHERE brand_id = $1',
           [brandId]
         );
 
-        const productsResult = await db.query(
-          'SELECT COUNT(*) as count FROM brand_products WHERE brand_id = $1 AND is_active = true',
+        const productsResult = await pool.query(
+          'SELECT COUNT(*) as total FROM brand_products WHERE brand_id = $1 AND is_active = true',
           [brandId]
         );
 
         stats.relationships = relationshipsResult.rows.reduce((acc, row) => {
-          acc[row.status] = parseInt(row.count);
+          acc[row.status] = parseInt(row.total);
           return acc;
         }, {});
 
-        stats.totalAssets = parseInt(assetsResult.rows[0]?.count || 0);
+        stats.totalAssets = parseInt(assetsResult.rows[0]?.total || 0);
         stats.totalDownloads = parseInt(assetsResult.rows[0]?.total_downloads || 0);
-        stats.totalProducts = parseInt(productsResult.rows[0]?.count || 0);
+        stats.totalProducts = parseInt(productsResult.rows[0]?.total || 0);
       }
     }
 
@@ -1057,7 +988,7 @@ app.get('/api/relationships', authenticateToken, async (req, res) => {
       `;
     }
 
-    const result = await db.query(query, params);
+    const result = await pool.query(query, params);
     res.json({ relationships: result.rows });
 
   } catch (error) {
@@ -1109,6 +1040,15 @@ app.use((error, req, res, next) => {
     return res.status(400).json({ error: error.message });
   }
 
+  // Database errors
+  if (error.code === '23505') {
+    return res.status(400).json({ error: 'Duplicate entry detected' });
+  }
+
+  if (error.code === '23503') {
+    return res.status(400).json({ error: 'Referenced record not found' });
+  }
+
   res.status(500).json({ 
     error: 'Internal server error', 
     code: 'SERVER_ERROR'
@@ -1127,7 +1067,7 @@ const server = app.listen(PORT, async () => {
     logger.info('🎉 ROLLodex API is ready and running!');
   } catch (error) {
     logger.error('Failed to initialize ROLLodex database:', error);
-    process.exit(1);
+    // Don't exit, let it try to connect later
   }
 });
 
@@ -1137,7 +1077,7 @@ const gracefulShutdown = async (signal) => {
   
   server.close(async () => {
     try {
-      await db.end();
+      await pool.end();
       logger.info('ROLLodex database connections closed');
       process.exit(0);
     } catch (error) {
