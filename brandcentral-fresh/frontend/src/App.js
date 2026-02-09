@@ -1,5 +1,5 @@
-import React, { useState, useEffect, createContext, useContext, useCallback } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate, useParams } from 'react-router-dom';
+import React, { useState, useEffect, createContext, useContext } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useForm } from 'react-hook-form';
 import toast, { Toaster } from 'react-hot-toast';
@@ -658,7 +658,7 @@ const Navigation = () => {
 const Dashboard = () => {
   const { user } = useAuth();
   const [stats, setStats] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
   const [brands, setBrands] = useState([]);
 
   useEffect(() => {
@@ -678,11 +678,11 @@ const Dashboard = () => {
       console.error('Dashboard fetch error:', error);
       toast.error('Failed to load dashboard data');
     } finally {
-      setLoading(false);
+      setDashboardLoading(false);
     }
   };
 
-  if (loading) {
+  if (dashboardLoading) {
     return (
       <div className="min-h-screen bg-slate-50 font-['Montserrat']">
         <Navigation />
@@ -866,13 +866,9 @@ const Dashboard = () => {
 // Brands Discovery Page
 const BrandsPage = () => {
   const [brands, setBrands] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [brandsLoading, setBrandsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [industryFilter, setIndustryFilter] = useState('');
-
-  useEffect(() => {
-    fetchBrands();
-  }, [searchTerm, industryFilter]);
 
   const fetchBrands = async () => {
     try {
@@ -886,9 +882,13 @@ const BrandsPage = () => {
       console.error('Brands fetch error:', error);
       toast.error('Failed to load brands');
     } finally {
-      setLoading(false);
+      setBrandsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchBrands();
+  }, [searchTerm, industryFilter]);
 
   return (
     <div className="min-h-screen bg-slate-50 font-['Montserrat']">
@@ -934,7 +934,7 @@ const BrandsPage = () => {
         </Card>
 
         {/* Brands Grid */}
-        {loading ? (
+        {brandsLoading ? (
           <div className="flex justify-center py-12">
             <LoadingSpinner size="lg" />
           </div>
@@ -987,7 +987,6 @@ const BrandsPage = () => {
 // Asset Library Page (for brands)
 const AssetsPage = () => {
   const [assets, setAssets] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   const handleFileUpload = async (files) => {
@@ -1098,7 +1097,7 @@ const AssetsPage = () => {
 // Relationships Page (for retailers)
 const RelationshipsPage = () => {
   const [relationships, setRelationships] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [relationshipsLoading, setRelationshipsLoading] = useState(true);
 
   useEffect(() => {
     fetchRelationships();
@@ -1112,11 +1111,11 @@ const RelationshipsPage = () => {
       console.error('Relationships fetch error:', error);
       toast.error('Failed to load relationships');
     } finally {
-      setLoading(false);
+      setRelationshipsLoading(false);
     }
   };
 
-  if (loading) {
+  if (relationshipsLoading) {
     return (
       <div className="min-h-screen bg-slate-50 font-['Montserrat']">
         <Navigation />
@@ -1198,9 +1197,8 @@ const RelationshipsPage = () => {
 
 // Brand Profile Page
 const ProfilePage = () => {
-  const { user } = useAuth();
   const [profile, setProfile] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [editing, setEditing] = useState(false);
 
   useEffect(() => {
@@ -1215,11 +1213,11 @@ const ProfilePage = () => {
       console.error('Profile fetch error:', error);
       toast.error('Failed to load profile');
     } finally {
-      setLoading(false);
+      setProfileLoading(false);
     }
   };
 
-  if (loading) {
+  if (profileLoading) {
     return (
       <div className="min-h-screen bg-slate-50 font-['Montserrat']">
         <Navigation />
