@@ -1,12 +1,13 @@
 {
-  "name": "brandcentral-backend",
+  "name": "brandcentral-backend-complete",
   "version": "1.0.0",
-  "description": "Brand Central B2B Platform API",
+  "description": "Brand Central B2B Platform - Complete Backend API",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "build": "echo 'Backend ready for deployment'"
+    "build": "echo 'Backend ready for deployment'",
+    "test": "echo 'Tests not implemented yet'"
   },
   "engines": {
     "node": ">=18.0.0",
@@ -29,7 +30,20 @@
   "devDependencies": {
     "nodemon": "^3.0.1"
   },
-  "keywords": ["b2b", "saas", "brands", "retailers"],
+  "keywords": [
+    "b2b",
+    "saas", 
+    "brands",
+    "retailers",
+    "platform",
+    "relationships",
+    "assets",
+    "enterprise"
+  ],
   "author": "Brand Central",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/brandcentral-complete"
+  }
 }
