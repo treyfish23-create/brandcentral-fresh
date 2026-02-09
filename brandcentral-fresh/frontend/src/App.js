@@ -662,25 +662,25 @@ const Dashboard = () => {
   const [brands, setBrands] = useState([]);
 
   useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const [statsResponse, brandsResponse] = await Promise.all([
+          api.get('/analytics/dashboard'),
+          api.get('/brands?limit=5')
+        ]);
+        
+        setStats(statsResponse.data.stats || {});
+        setBrands(brandsResponse.data.brands || []);
+      } catch (error) {
+        console.error('Dashboard fetch error:', error);
+        toast.error('Failed to load dashboard data');
+      } finally {
+        setDashboardLoading(false);
+      }
+    };
+
     fetchDashboardData();
   }, []);
-
-  const fetchDashboardData = async () => {
-    try {
-      const [statsResponse, brandsResponse] = await Promise.all([
-        api.get('/analytics/dashboard'),
-        api.get('/brands?limit=5')
-      ]);
-      
-      setStats(statsResponse.data.stats || {});
-      setBrands(brandsResponse.data.brands || []);
-    } catch (error) {
-      console.error('Dashboard fetch error:', error);
-      toast.error('Failed to load dashboard data');
-    } finally {
-      setDashboardLoading(false);
-    }
-  };
 
   if (dashboardLoading) {
     return (
@@ -863,30 +863,31 @@ const Dashboard = () => {
   );
 };
 
-// Brands Discovery Page
+// Brands Discovery Page - FIXED VERSION
 const BrandsPage = () => {
   const [brands, setBrands] = useState([]);
   const [brandsLoading, setBrandsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [industryFilter, setIndustryFilter] = useState('');
 
-  const fetchBrands = async () => {
-    try {
-      const params = new URLSearchParams();
-      if (searchTerm) params.append('search', searchTerm);
-      if (industryFilter) params.append('industry', industryFilter);
-      
-      const response = await api.get(`/brands?${params}`);
-      setBrands(response.data.brands || []);
-    } catch (error) {
-      console.error('Brands fetch error:', error);
-      toast.error('Failed to load brands');
-    } finally {
-      setBrandsLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const fetchBrands = async () => {
+      setBrandsLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (searchTerm) params.append('search', searchTerm);
+        if (industryFilter) params.append('industry', industryFilter);
+        
+        const response = await api.get(`/brands?${params}`);
+        setBrands(response.data.brands || []);
+      } catch (error) {
+        console.error('Brands fetch error:', error);
+        toast.error('Failed to load brands');
+      } finally {
+        setBrandsLoading(false);
+      }
+    };
+
     fetchBrands();
   }, [searchTerm, industryFilter]);
 
@@ -927,9 +928,6 @@ const BrandsPage = () => {
                 <option value="Fashion">Fashion</option>
               </select>
             </div>
-            <Button onClick={fetchBrands}>
-              Search
-            </Button>
           </div>
         </Card>
 
@@ -1100,20 +1098,20 @@ const RelationshipsPage = () => {
   const [relationshipsLoading, setRelationshipsLoading] = useState(true);
 
   useEffect(() => {
+    const fetchRelationships = async () => {
+      try {
+        const response = await api.get('/relationships');
+        setRelationships(response.data.relationships || []);
+      } catch (error) {
+        console.error('Relationships fetch error:', error);
+        toast.error('Failed to load relationships');
+      } finally {
+        setRelationshipsLoading(false);
+      }
+    };
+
     fetchRelationships();
   }, []);
-
-  const fetchRelationships = async () => {
-    try {
-      const response = await api.get('/relationships');
-      setRelationships(response.data.relationships || []);
-    } catch (error) {
-      console.error('Relationships fetch error:', error);
-      toast.error('Failed to load relationships');
-    } finally {
-      setRelationshipsLoading(false);
-    }
-  };
 
   if (relationshipsLoading) {
     return (
@@ -1202,20 +1200,20 @@ const ProfilePage = () => {
   const [editing, setEditing] = useState(false);
 
   useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await api.get('/users/profile');
+        setProfile(response.data.user || {});
+      } catch (error) {
+        console.error('Profile fetch error:', error);
+        toast.error('Failed to load profile');
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
     fetchProfile();
   }, []);
-
-  const fetchProfile = async () => {
-    try {
-      const response = await api.get('/users/profile');
-      setProfile(response.data.user || {});
-    } catch (error) {
-      console.error('Profile fetch error:', error);
-      toast.error('Failed to load profile');
-    } finally {
-      setProfileLoading(false);
-    }
-  };
 
   if (profileLoading) {
     return (
