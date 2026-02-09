@@ -1,0 +1,27 @@
+# Railway Deployment Configuration
+# This file helps Railway understand how to deploy Brand Central
+
+# Backend Service
+[backend]
+build = "npm install"
+start = "npm start"
+port = 3001
+
+# Environment Variables (Railway will provide DATABASE_URL)
+[backend.env]
+NODE_ENV = "production"
+JWT_SECRET = { generate = "secret" }
+LOG_LEVEL = "info"
+
+# Frontend Service  
+[frontend]
+build = "npm install && npm run build"
+start = "npx serve -s build -l $PORT"
+
+[frontend.env]
+REACT_APP_API_URL = "{{BACKEND_URL}}/api"
+
+# Database
+[database]
+type = "postgresql"
+version = "15"

@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brand Central - B2B Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f0f7f4', 100: '#dcebe3', 200: '#bcd8cb',
+                            300: '#8fbda8', 400: '#5f9b83', 500: '#527767',
+                            600: '#3e5c4f', 700: '#334c41', 800: '#2b3d35',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50">
+    <div id="app">
+        <!-- Login Page -->
+        <div id="login-page" class="page">
+            <div class="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+                <div class="sm:mx-auto sm:w-full sm:max-w-md">
+                    <!-- Logo -->
+                    <div class="flex justify-center">
+                        <div class="w-12 h-12 bg-primary-500 rounded-xl flex items-center justify-center">
+                            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <h1 class="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">Brand Central</h1>
+                    <p class="mt-2 text-center text-sm text-gray-600">The modern platform for brand-retailer relationships</p>
+                </div>
+
+                <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+                    <div class="bg-white py-8 px-4 shadow rounded-lg sm:px-10">
+                        <div class="space-y-6">
+                            <!-- Account Type Selector -->
+                            <div>
+                                <label class="text-sm font-medium text-gray-700">Account Type</label>
+                                <div class="mt-2 flex bg-gray-100 rounded-lg p-1">
+                                    <button type="button" id="retailer-tab" onclick="switchAccountType('retailer')" 
+                                            class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors bg-white text-primary-700 shadow-sm">
+                                        I'm a Retailer
+                                    </button>
+                                    <button type="button" id="brand-tab" onclick="switchAccountType('brand')" 
+                                            class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors text-gray-600 hover:text-gray-800">
+                                        I'm a Brand
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Login Form -->
+                            <form onsubmit="login(event)" class="space-y-6">
+                                <div>
+                                    <label for="email" class="block text-sm font-medium text-gray-700">Email address</label>
+                                    <input id="email" name="email" type="email" autocomplete="email" required
+                                           class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
+                                           placeholder="Enter your email">
+                                </div>
+
+                                <div>
+                                    <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                                    <input id="password" name="password" type="password" autocomplete="current-password" required
+                                           class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
+                                           placeholder="Enter your password">
+                                </div>
+
+                                <div>
+                                    <button type="submit" id="login-btn"
+                                            class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
+                                        Sign In
+                                    </button>
+                                </div>
+                            </form>
+
+                            <!-- Demo Accounts -->
+                            <div class="mt-6">
+                                <div class="relative">
+                                    <div class="absolute inset-0 flex items-center">
+                                        <div class="w-full border-t border-gray-300"></div>
+                                    </div>
+                                    <div class="relative flex justify-center text-sm">
+                                        <span class="px-2 bg-white text-gray-500">Try demo accounts</span>
+                                    </div>
+                                </div>
+
+                                <div class="mt-6 grid grid-cols-1 gap-3">
+                                    <button type="button" onclick="demoLogin('retailer')"
+                                            class="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                                        Demo Retailer Account
+                                    </button>
+                                    <button type="button" onclick="demoLogin('brand')"
+                                            class="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                                        Demo Brand Account
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Quick Register -->
+                            <div class="mt-6 text-center">
+                                <button onclick="showRegister()" class="text-primary-600 hover:text-primary-500 text-sm font-medium">
+                                    Don't have an account? Sign up
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Registration Page -->
+        <div id="register-page" class="page hidden">
+            <div class="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+                <div class="sm:mx-auto sm:w-full sm:max-w-md">
+                    <div class="flex justify-center">
+                        <div class="w-12 h-12 bg-primary-500 rounded-xl flex items-center justify-center">
+                            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <h1 class="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">Create Account</h1>
+                </div>
+
+                <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+                    <div class="bg-white py-8 px-4 shadow rounded-lg sm:px-10">
+                        <form onsubmit="register(event)" class="space-y-6">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="firstName" class="block text-sm font-medium text-gray-700">First Name</label>
+                                    <input id="firstName" type="text" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                                </div>
+                                <div>
+                                    <label for="lastName" class="block text-sm font-medium text-gray-700">Last Name</label>
+                                    <input id="lastName" type="text" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label for="regEmail" class="block text-sm font-medium text-gray-700">Email</label>
+                                <input id="regEmail" type="email" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                            </div>
+
+                            <div>
+                                <label for="company" class="block text-sm font-medium text-gray-700">Company Name</label>
+                                <input id="company" type="text" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                            </div>
+
+                            <div>
+                                <label for="regPassword" class="block text-sm font-medium text-gray-700">Password</label>
+                                <input id="regPassword" type="password" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                            </div>
+
+                            <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
+                                Create Account
+                            </button>
+                        </form>
+
+                        <div class="mt-6 text-center">
+                            <button onclick="showLogin()" class="text-primary-600 hover:text-primary-500 text-sm font-medium">
+                                Already have an account? Sign in
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Retailer Dashboard -->
+        <div id="retailer-dashboard" class="page hidden">
+            <!-- Navigation -->
+            <nav class="bg-white shadow border-b border-gray-200">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="flex justify-between h-16">
+                        <div class="flex">
+                            <div class="flex-shrink-0 flex items-center">
+                                <div class="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                                    </svg>
+                                </div>
+                                <span class="ml-3 text-xl font-semibold text-gray-900">Brand Central</span>
+                            </div>
+                            <div class="ml-8 flex space-x-8">
+                                <a href="#" class="border-primary-500 text-primary-600 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Dashboard</a>
+                                <a href="#" class="border-transparent text-gray-500 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">My Brands</a>
+                                <a href="#" class="border-transparent text-gray-500 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Discover</a>
+                            </div>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="text-gray-700 font-medium mr-4" id="user-name">Welcome!</span>
+                            <button onclick="logout()" class="text-gray-500 hover:text-gray-700">Logout</button>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Dashboard Content -->
+            <main class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+                <div class="mb-8">
+                    <h1 class="text-2xl font-bold text-gray-900" id="retailer-welcome">Welcome back!</h1>
+                    <p class="text-gray-600">Here's what's happening with your brand partnerships</p>
+                </div>
+
+                <!-- Stats -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white rounded-lg border border-gray-200 p-6">
+                        <div class="flex items-center">
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-gray-600">Total Brands</p>
+                                <p class="text-2xl font-semibold text-gray-900 mt-1">142</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg border border-gray-200 p-6">
+                        <div class="flex items-center">
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-gray-600">Active Partners</p>
+                                <p class="text-2xl font-semibold text-gray-900 mt-1">89</p>
+                                <div class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-2 text-green-600 bg-green-50">+12% this month</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg border border-gray-200 p-6">
+                        <div class="flex items-center">
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-gray-600">Pending Requests</p>
+                                <p class="text-2xl font-semibold text-gray-900 mt-1">7</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg border border-gray-200 p-6">
+                        <div class="flex items-center">
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-gray-600">New This Month</p>
+                                <p class="text-2xl font-semibold text-gray-900 mt-1">12</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Brand List -->
+                <div class="bg-white rounded-lg border border-gray-200 p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-lg font-semibold text-gray-900">Your Brands</h2>
+                        <button class="bg-primary-500 text-white px-4 py-2 rounded-md hover:bg-primary-600">Add New Brand</button>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center text-xl">🌿</div>
+                                <div>
+                                    <h3 class="font-medium text-gray-900">Pure Elements</h3>
+                                    <p class="text-sm text-gray-500">Natural Foods • 23 products</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-6">
+                                <div class="text-right">
+                                    <p class="text-sm font-medium text-gray-900">Updated 2 days ago</p>
+                                    <p class="text-sm text-gray-500">Profile: 85% complete</p>
+                                </div>
+                                <span class="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700">Active</span>
+                                <button class="text-primary-600 hover:text-primary-700 text-sm font-medium">View Details</button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-xl">🧪</div>
+                                <div>
+                                    <h3 class="font-medium text-gray-900">TechFoods Innovation</h3>
+                                    <p class="text-sm text-gray-500">Food Technology • 8 products</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-6">
+                                <div class="text-right">
+                                    <p class="text-sm font-medium text-gray-900">Updated 1 week ago</p>
+                                    <p class="text-sm text-gray-500">Profile: 78% complete</p>
+                                </div>
+                                <span class="px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-700">Prospective</span>
+                                <button class="text-primary-600 hover:text-primary-700 text-sm font-medium">View Details</button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center text-xl">🏺</div>
+                                <div>
+                                    <h3 class="font-medium text-gray-900">Artisan Craft Co</h3>
+                                    <p class="text-sm text-gray-500">Home Goods • 45 products</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-6">
+                                <div class="text-right">
+                                    <p class="text-sm font-medium text-gray-900">Updated 3 days ago</p>
+                                    <p class="text-sm text-gray-500">Profile: 92% complete</p>
+                                </div>
+                                <span class="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700">Active</span>
+                                <button class="text-primary-600 hover:text-primary-700 text-sm font-medium">View Details</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Brand Dashboard -->
+        <div id="brand-dashboard" class="page hidden">
+            <!-- Navigation -->
+            <nav class="bg-white shadow border-b border-gray-200">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="flex justify-between h-16">
+                        <div class="flex">
+                            <div class="flex-shrink-0 flex items-center">
+                                <div class="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                                    </svg>
+                                </div>
+                                <span class="ml-3 text-xl font-semibold text-gray-900">Brand Central</span>
+                            </div>
+                            <div class="ml-8 flex space-x-8">
+                                <a href="#" class="border-primary-500 text-primary-600 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Dashboard</a>
+                                <a href="#" class="border-transparent text-gray-500 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Profile</a>
+                                <a href="#" class="border-transparent text-gray-500 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Assets</a>
+                                <a href="#" class="border-transparent text-gray-500 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Partners</a>
+                            </div>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="text-gray-700 font-medium mr-4" id="brand-user-name">Welcome!</span>
+                            <button onclick="logout()" class="text-gray-500 hover:text-gray-700">Logout</button>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Dashboard Content -->
+            <main class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+                <div class="mb-8">
+                    <h1 class="text-2xl font-bold text-gray-900" id="brand-welcome">Welcome back!</h1>
+                    <p class="text-gray-600">Manage your brand presence and retailer partnerships</p>
+                </div>
+
+                <!-- Profile Completion -->
+                <div class="bg-gradient-to-r from-primary-50 to-primary-100 border border-primary-200 rounded-lg p-6 mb-8">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-lg font-semibold text-primary-900">Complete Your Brand Profile</h2>
+                            <p class="text-primary-700">Your profile is 85% complete. Add more details to attract retailer partners.</p>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="w-16 bg-primary-200 rounded-full h-3">
+                                <div class="bg-primary-600 h-3 rounded-full" style="width: 85%"></div>
+                            </div>
+                            <button class="bg-primary-500 text-white px-4 py-2 rounded font-medium hover:bg-primary-600">Complete Profile</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white rounded-lg border border-gray-200 p-6">
+                        <div class="flex items-center">
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-gray-600">Profile Completeness</p>
+                                <p class="text-2xl font-semibold text-gray-900 mt-1">85%</p>
+                                <div class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-2 text-green-600 bg-green-50">+15% this week</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg border border-gray-200 p-6">
+                        <div class="flex items-center">
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-gray-600">Total Retailers</p>
+                                <p class="text-2xl font-semibold text-gray-900 mt-1">23</p>
+                                <div class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-2 text-green-600 bg-green-50">+3 this month</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg border border-gray-200 p-6">
+                        <div class="flex items-center">
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-gray-600">Active Partners</p>
+                                <p class="text-2xl font-semibold text-gray-900 mt-1">18</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg border border-gray-200 p-6">
+                        <div class="flex items-center">
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-gray-600">Asset Downloads</p>
+                                <p class="text-2xl font-semibold text-gray-900 mt-1">156</p>
+                                <div class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-2 text-green-600 bg-green-50">+24 this week</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Content Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Quick Actions -->
+                    <div class="bg-white rounded-lg border border-gray-200 p-6">
+                        <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+                        <div class="space-y-3">
+                            <button class="w-full text-left p-3 bg-gray-50 rounded hover:bg-gray-100 transition-colors flex items-center">
+                                <span class="mr-3">📁</span> Upload New Assets
+                            </button>
+                            <button class="w-full text-left p-3 bg-gray-50 rounded hover:bg-gray-100 transition-colors flex items-center">
+                                <span class="mr-3">✏️</span> Update Brand Profile
+                            </button>
+                            <button class="w-full text-left p-3 bg-gray-50 rounded hover:bg-gray-100 transition-colors flex items-center">
+                                <span class="mr-3">📊</span> View Analytics
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity -->
+                    <div class="bg-white rounded-lg border border-gray-200 p-6">
+                        <h2 class="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
+                        <div class="space-y-4">
+                            <div class="flex items-start gap-3">
+                                <div class="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                                <div class="text-sm">
+                                    <span class="font-medium">Fresh Market Co</span> downloaded your product catalog
+                                    <span class="text-gray-500 block">2 hours ago</span>
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <div class="w-2 h-2 bg-yellow-500 rounded-full mt-2 flex-shrink-0"></div>
+                                <div class="text-sm">
+                                    <span class="font-medium">Urban Retailers</span> requested access to marketing materials
+                                    <span class="text-gray-500 block">1 day ago</span>
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <div class="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                                <div class="text-sm">
+                                    Your brand profile was viewed <span class="font-medium">12 times</span>
+                                    <span class="text-gray-500 block">3 days ago</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Partner Relationships -->
+                <div class="mt-8 bg-white rounded-lg border border-gray-200 p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h2 class="text-lg font-semibold text-gray-900">Retailer Partners</h2>
+                            <p class="text-sm text-gray-500">Manage your retailer relationships</p>
+                        </div>
+                        <button class="bg-primary-500 text-white px-4 py-2 rounded-md hover:bg-primary-600">View All Partners</button>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-xl">🛒</div>
+                                <div>
+                                    <h3 class="font-medium text-gray-900">Fresh Market Co</h3>
+                                    <p class="text-sm text-gray-500">Premium Snacks • Partner since Jan 15, 2024</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <span class="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700">Active</span>
+                                <button class="text-primary-600 hover:text-primary-700 text-sm font-medium">View Details</button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center text-xl">🏬</div>
+                                <div>
+                                    <h3 class="font-medium text-gray-900">Urban Retailers</h3>
+                                    <p class="text-sm text-gray-500">Natural Foods • Prospective partner</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <span class="px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-700">Prospective</span>
+                                <button class="text-primary-600 hover:text-primary-700 text-sm font-medium">View Details</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        let currentAccountType = 'retailer';
+        let currentUser = null;
+
+        // Demo users
+        const demoUsers = {
+            retailer: {
+                email: 'admin@freshmarket.com',
+                password: 'demo123',
+                firstName: 'Sarah',
+                lastName: 'Johnson',
+                company: 'Fresh Market Co',
+                type: 'retailer'
+            },
+            brand: {
+                email: 'admin@pureelements.com',
+                password: 'demo123',
+                firstName: 'Emma',
+                lastName: 'Green',
+                company: 'Pure Elements',
+                type: 'brand'
+            }
+        };
+
+        function switchAccountType(type) {
+            currentAccountType = type;
+            document.getElementById('retailer-tab').className = type === 'retailer' 
+                ? 'flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors bg-white text-primary-700 shadow-sm'
+                : 'flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors text-gray-600 hover:text-gray-800';
+            document.getElementById('brand-tab').className = type === 'brand' 
+                ? 'flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors bg-white text-primary-700 shadow-sm'
+                : 'flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors text-gray-600 hover:text-gray-800';
+        }
+
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(page => page.classList.add('hidden'));
+            document.getElementById(pageId).classList.remove('hidden');
+        }
+
+        function showLogin() {
+            showPage('login-page');
+        }
+
+        function showRegister() {
+            showPage('register-page');
+        }
+
+        function demoLogin(type) {
+            const user = demoUsers[type];
+            currentUser = user;
+            
+            // Show appropriate dashboard
+            if (type === 'retailer') {
+                document.getElementById('user-name').textContent = `Welcome, ${user.firstName}!`;
+                document.getElementById('retailer-welcome').textContent = `Welcome back, ${user.firstName}!`;
+                showPage('retailer-dashboard');
+            } else {
+                document.getElementById('brand-user-name').textContent = `Welcome, ${user.firstName}!`;
+                document.getElementById('brand-welcome').textContent = `Welcome back, ${user.firstName}!`;
+                showPage('brand-dashboard');
+            }
+
+            // Store in localStorage
+            localStorage.setItem('currentUser', JSON.stringify(user));
+        }
+
+        function login(event) {
+            event.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            // Check demo accounts
+            const demoUser = Object.values(demoUsers).find(user => 
+                user.email === email && user.password === password
+            );
+
+            if (demoUser) {
+                demoLogin(demoUser.type);
+                return;
+            }
+
+            // Check localStorage for registered users
+            const registeredUsers = JSON.parse(localStorage.getItem('registeredUsers') || '[]');
+            const user = registeredUsers.find(u => u.email === email && u.password === password);
+
+            if (user) {
+                currentUser = user;
+                if (user.type === 'retailer') {
+                    document.getElementById('user-name').textContent = `Welcome, ${user.firstName}!`;
+                    document.getElementById('retailer-welcome').textContent = `Welcome back, ${user.firstName}!`;
+                    showPage('retailer-dashboard');
+                } else {
+                    document.getElementById('brand-user-name').textContent = `Welcome, ${user.firstName}!`;
+                    document.getElementById('brand-welcome').textContent = `Welcome back, ${user.firstName}!`;
+                    showPage('brand-dashboard');
+                }
+                localStorage.setItem('currentUser', JSON.stringify(user));
+            } else {
+                alert('Invalid email or password. Try demo accounts!');
+            }
+        }
+
+        function register(event) {
+            event.preventDefault();
+            const firstName = document.getElementById('firstName').value;
+            const lastName = document.getElementById('lastName').value;
+            const email = document.getElementById('regEmail').value;
+            const company = document.getElementById('company').value;
+            const password = document.getElementById('regPassword').value;
+
+            const newUser = {
+                firstName,
+                lastName,
+                email,
+                company,
+                password,
+                type: currentAccountType
+            };
+
+            // Save to localStorage
+            const registeredUsers = JSON.parse(localStorage.getItem('registeredUsers') || '[]');
+            registeredUsers.push(newUser);
+            localStorage.setItem('registeredUsers', JSON.stringify(registeredUsers));
+
+            alert('Account created successfully! You can now log in.');
+            showLogin();
+        }
+
+        function logout() {
+            currentUser = null;
+            localStorage.removeItem('currentUser');
+            showLogin();
+        }
+
+        // Check if user is already logged in
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedUser = localStorage.getItem('currentUser');
+            if (savedUser) {
+                const user = JSON.parse(savedUser);
+                demoLogin(user.type);
+            }
+        });
+    </script>
+</body>
+</html>
