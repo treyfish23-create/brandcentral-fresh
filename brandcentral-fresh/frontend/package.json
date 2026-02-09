@@ -1,8 +1,8 @@
 {
-  "name": "brandcentral-frontend",
+  "name": "brandcentral-frontend-complete", 
   "version": "1.0.0",
   "private": true,
-  "description": "Brand Central B2B Platform Frontend",
+  "description": "Brand Central B2B Platform - Complete Frontend",
   "homepage": "./",
   "dependencies": {
     "react": "^18.2.0",
@@ -11,7 +11,13 @@
     "react-scripts": "5.0.1",
     "axios": "^1.4.0",
     "react-hook-form": "^7.45.2",
-    "react-hot-toast": "^2.4.1"
+    "react-hot-toast": "^2.4.1",
+    "react-dropzone": "^14.2.3",
+    "react-query": "^3.39.3",
+    "@headlessui/react": "^1.7.15",
+    "@heroicons/react": "^2.0.18",
+    "date-fns": "^2.30.0",
+    "classnames": "^2.3.2"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -29,7 +35,7 @@
   "browserslist": {
     "production": [
       ">0.2%",
-      "not dead",
+      "not dead", 
       "not op_mini all"
     ],
     "development": [
@@ -41,5 +47,16 @@
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=8.0.0"
-  }
+  },
+  "keywords": [
+    "react",
+    "b2b",
+    "saas",
+    "brands",
+    "retailers",
+    "enterprise",
+    "dashboard"
+  ],
+  "author": "Brand Central",
+  "license": "MIT"
 }
