@@ -1,12 +1,12 @@
 {
-  "name": "brandcentral-backend-complete",
+  "name": "rollodex-backend-complete",
   "version": "1.0.0",
-  "description": "Brand Central B2B Platform - Complete Backend API",
+  "description": "ROLLodex - Complete B2B Partnership Platform API",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "build": "echo 'Backend ready for deployment'",
+    "build": "echo 'ROLLodex backend ready for deployment'",
     "test": "echo 'Tests not implemented yet'"
   },
   "engines": {
@@ -31,19 +31,21 @@
     "nodemon": "^3.0.1"
   },
   "keywords": [
+    "rollodex",
     "b2b",
     "saas", 
     "brands",
     "retailers",
-    "platform",
+    "partnerships",
     "relationships",
     "assets",
-    "enterprise"
+    "enterprise",
+    "platform"
   ],
-  "author": "Brand Central",
+  "author": "ROLLodex Team",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/brandcentral-complete"
+    "url": "https://github.com/your-username/rollodex-complete"
   }
 }
