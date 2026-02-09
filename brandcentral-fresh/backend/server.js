@@ -24,7 +24,7 @@ const logger = winston.createLogger({
     winston.format.errors({ stack: true }),
     winston.format.json()
   ),
-  defaultMeta: { service: 'brandcentral-api' },
+  defaultMeta: { service: 'rollodex-api' },
   transports: [
     new winston.transports.Console(),
     new winston.transports.File({ filename: 'error.log', level: 'error' }),
@@ -43,7 +43,7 @@ const db = new Client({
 
 // Connect to database
 db.connect().then(() => {
-  logger.info('✅ Database connected successfully');
+  logger.info('✅ ROLLodex database connected successfully');
 }).catch(err => {
   logger.error('❌ Database connection failed:', err);
   process.exit(1);
@@ -79,17 +79,17 @@ const upload = multer({
   storage: storage,
   limits: { 
     fileSize: 10 * 1024 * 1024, // 10MB limit
-    files: 5 // Max 5 files
+    files: 10 // Max 10 files
   },
   fileFilter: function (req, file, cb) {
-    const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx|xls|xlsx/;
+    const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx|xls|xlsx|ppt|pptx/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
     
     if (mimetype && extname) {
       return cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only images and documents allowed.'));
+      cb(new Error('Invalid file type. Only images, PDFs, and documents allowed.'));
     }
   }
 });
@@ -99,8 +99,9 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
-      scriptSrc: ["'self'", "https://cdn.tailwindcss.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "blob:"],
       connectSrc: ["'self'"]
     }
@@ -143,7 +144,7 @@ app.use((req, res, next) => {
   
   res.on('finish', () => {
     const duration = Date.now() - startTime;
-    logger.info('Request processed', {
+    logger.info('ROLLodex API request processed', {
       method: req.method,
       url: req.originalUrl,
       status: res.statusCode,
@@ -169,7 +170,7 @@ const authenticateToken = (req, res, next) => {
     });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret', (err, user) => {
+  jwt.verify(token, process.env.JWT_SECRET || 'rollodex-secret-key', (err, user) => {
     if (err) {
       logger.warn('Invalid token attempt', { token: token.substring(0, 10) + '...' });
       return res.status(403).json({ 
@@ -190,15 +191,18 @@ app.get('/health', async (req, res) => {
     
     res.json({ 
       status: 'healthy',
+      service: 'ROLLodex API',
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV || 'development',
       database: 'connected',
-      uptime: process.uptime()
+      uptime: process.uptime(),
+      version: '1.0.0'
     });
   } catch (error) {
     logger.error('Health check failed:', error);
     res.status(503).json({
       status: 'unhealthy',
+      service: 'ROLLodex API',
       timestamp: new Date().toISOString(),
       error: 'Database connection failed'
     });
@@ -208,6 +212,8 @@ app.get('/health', async (req, res) => {
 // Database initialization
 async function initDatabase() {
   try {
+    logger.info('🔧 Initializing ROLLodex database...');
+
     // Create users table
     await db.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -223,6 +229,7 @@ async function initDatabase() {
         title VARCHAR(100),
         is_active BOOLEAN DEFAULT true,
         email_verified BOOLEAN DEFAULT false,
+        last_login TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -243,6 +250,7 @@ async function initDatabase() {
         postal_code VARCHAR(20),
         logo_url VARCHAR(255),
         owner_id INTEGER REFERENCES users(id),
+        settings JSONB DEFAULT '{}',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -263,7 +271,9 @@ async function initDatabase() {
         postal_code VARCHAR(20),
         logo_url VARCHAR(255),
         profile_completion_score INTEGER DEFAULT 0,
+        is_verified BOOLEAN DEFAULT false,
         owner_id INTEGER REFERENCES users(id),
+        settings JSONB DEFAULT '{}',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -279,6 +289,7 @@ async function initDatabase() {
         partnership_type VARCHAR(100),
         started_date DATE,
         notes TEXT,
+        priority VARCHAR(20) DEFAULT 'normal',
         created_by INTEGER REFERENCES users(id),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -294,6 +305,7 @@ async function initDatabase() {
         brand_id INTEGER REFERENCES brands(id) ON DELETE CASCADE,
         note_text TEXT NOT NULL,
         visibility VARCHAR(50) DEFAULT 'private',
+        tags TEXT[],
         created_by INTEGER REFERENCES users(id),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -312,6 +324,7 @@ async function initDatabase() {
         price DECIMAL(10,2),
         image_url VARCHAR(255),
         is_active BOOLEAN DEFAULT true,
+        metadata JSONB DEFAULT '{}',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -328,9 +341,10 @@ async function initDatabase() {
         file_size INTEGER,
         file_path VARCHAR(500),
         description TEXT,
-        category VARCHAR(100),
+        category VARCHAR(100) DEFAULT 'general',
         permission_level VARCHAR(50) DEFAULT 'partners_only',
         download_count INTEGER DEFAULT 0,
+        is_featured BOOLEAN DEFAULT false,
         uploaded_by INTEGER REFERENCES users(id),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -346,6 +360,7 @@ async function initDatabase() {
         permission_type VARCHAR(50) DEFAULT 'view',
         granted_by INTEGER REFERENCES users(id),
         granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP,
         UNIQUE(asset_id, retailer_id)
       )
     `);
@@ -356,25 +371,11 @@ async function initDatabase() {
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         description TEXT,
+        fields JSONB NOT NULL,
         is_active BOOLEAN DEFAULT true,
         created_by INTEGER REFERENCES users(id),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create form_fields table
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS form_fields (
-        id SERIAL PRIMARY KEY,
-        form_id INTEGER REFERENCES intake_forms(id) ON DELETE CASCADE,
-        field_name VARCHAR(100) NOT NULL,
-        field_type VARCHAR(50) NOT NULL,
-        field_label VARCHAR(255),
-        is_required BOOLEAN DEFAULT false,
-        field_order INTEGER DEFAULT 0,
-        field_options TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
@@ -384,45 +385,63 @@ async function initDatabase() {
         id SERIAL PRIMARY KEY,
         form_id INTEGER REFERENCES intake_forms(id) ON DELETE CASCADE,
         brand_id INTEGER REFERENCES brands(id) ON DELETE CASCADE,
-        field_id INTEGER REFERENCES form_fields(id) ON DELETE CASCADE,
-        response_value TEXT,
+        responses JSONB NOT NULL,
+        submitted_by INTEGER REFERENCES users(id),
         submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
-    // Create audit_log table
+    // Create activity_log table
     await db.query(`
-      CREATE TABLE IF NOT EXISTS audit_log (
+      CREATE TABLE IF NOT EXISTS activity_log (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id),
         action VARCHAR(100) NOT NULL,
         entity_type VARCHAR(50),
         entity_id INTEGER,
-        old_values JSONB,
-        new_values JSONB,
+        metadata JSONB,
         ip_address INET,
         user_agent TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
+    // Create notification_preferences table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS notification_preferences (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        email_notifications BOOLEAN DEFAULT true,
+        partnership_updates BOOLEAN DEFAULT true,
+        asset_notifications BOOLEAN DEFAULT true,
+        weekly_digest BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id)
+      )
+    `);
+
     // Create indexes for better performance
     await db.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_users_company_type ON users(company_type)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_brands_owner ON brands(owner_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_brands_industry ON brands(industry)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_relationships_brand ON brand_retailer_relationships(brand_id)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_relationships_retailer ON brand_retailer_relationships(retailer_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_relationships_status ON brand_retailer_relationships(status)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_assets_brand ON brand_assets(brand_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_assets_permission ON brand_assets(permission_level)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_products_brand ON brand_products(brand_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_activity_user ON activity_log(user_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_activity_entity ON activity_log(entity_type, entity_id)');
 
-    logger.info('✅ Database tables and indexes created successfully');
+    logger.info('✅ ROLLodex database tables and indexes created successfully');
     
     // Insert demo data
     await insertDemoData();
     
   } catch (error) {
-    logger.error('❌ Database initialization failed:', error);
+    logger.error('❌ ROLLodex database initialization failed:', error);
     throw error;
   }
 }
@@ -432,10 +451,11 @@ async function insertDemoData() {
     // Check if demo data exists
     const existingUsers = await db.query('SELECT COUNT(*) FROM users');
     if (parseInt(existingUsers.rows[0].count) > 0) {
-      logger.info('✅ Demo data already exists');
+      logger.info('✅ ROLLodex demo data already exists');
       return;
     }
 
+    logger.info('🌱 Creating ROLLodex demo data...');
     const hashedPassword = await bcrypt.hash('password123', 12);
     
     // Demo retailer users
@@ -473,31 +493,31 @@ async function insertDemoData() {
 
     // Create brand profiles with completion scores
     const pureElementsBrand = await db.query(`
-      INSERT INTO brands (name, description, industry, website, address, city, state, country, postal_code, profile_completion_score, owner_id) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id
-    `, ['Pure Elements', 'Organic and natural food products made with sustainable practices and premium ingredients', 'Natural Foods', 'https://pureelements.com', '789 Green Valley Road', 'Boulder', 'CO', 'USA', '80301', 85, brandResult.rows[0].id]);
+      INSERT INTO brands (name, description, industry, website, address, city, state, country, postal_code, profile_completion_score, is_verified, owner_id) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id
+    `, ['Pure Elements', 'Organic and natural food products made with sustainable practices and premium ingredients', 'Natural Foods', 'https://pureelements.com', '789 Green Valley Road', 'Boulder', 'CO', 'USA', '80301', 87, true, brandResult.rows[0].id]);
 
     const techFoodsBrand = await db.query(`
-      INSERT INTO brands (name, description, industry, website, address, city, state, country, postal_code, profile_completion_score, owner_id) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id
-    `, ['TechFoods Innovation', 'Next-generation food technology company creating innovative snacks and beverages', 'Food Technology', 'https://techfoods.io', '321 Innovation Drive', 'Austin', 'TX', 'USA', '73301', 78, brand2Result.rows[0].id]);
+      INSERT INTO brands (name, description, industry, website, address, city, state, country, postal_code, profile_completion_score, is_verified, owner_id) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id
+    `, ['TechFoods Innovation', 'Next-generation food technology company creating innovative snacks and beverages', 'Food Technology', 'https://techfoods.io', '321 Innovation Drive', 'Austin', 'TX', 'USA', '73301', 78, false, brand2Result.rows[0].id]);
 
     // Create brand-retailer relationships
     await db.query(`
-      INSERT INTO brand_retailer_relationships (brand_id, retailer_id, status, partnership_type, started_date, notes, created_by) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `, [pureElementsBrand.rows[0].id, retailerResult.rows[0].id, 'active', 'Preferred Vendor', '2023-08-15', 'Excellent partnership with consistent quality and delivery', retailerResult.rows[0].id]);
+      INSERT INTO brand_retailer_relationships (brand_id, retailer_id, status, partnership_type, started_date, notes, priority, created_by) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [pureElementsBrand.rows[0].id, retailerResult.rows[0].id, 'active', 'Preferred Vendor', '2023-08-15', 'Excellent partnership with consistent quality and delivery', 'high', retailerResult.rows[0].id]);
 
     await db.query(`
-      INSERT INTO brand_retailer_relationships (brand_id, retailer_id, status, partnership_type, notes, created_by) 
-      VALUES ($1, $2, $3, $4, $5, $6)
-    `, [techFoodsBrand.rows[0].id, retailer2Result.rows[0].id, 'prospective', 'New Vendor Evaluation', 'Promising new brand with innovative products', retailer2Result.rows[0].id]);
+      INSERT INTO brand_retailer_relationships (brand_id, retailer_id, status, partnership_type, notes, priority, created_by) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [techFoodsBrand.rows[0].id, retailer2Result.rows[0].id, 'prospective', 'New Vendor Evaluation', 'Promising new brand with innovative products', 'normal', retailer2Result.rows[0].id]);
 
     // Add retailer private notes
     await db.query(`
-      INSERT INTO retailer_brand_notes (retailer_id, brand_id, note_text, visibility, created_by) 
-      VALUES ($1, $2, $3, $4, $5)
-    `, [retailerResult.rows[0].id, pureElementsBrand.rows[0].id, 'Great margins on organic line. Consider expanding to more SKUs next quarter.', 'internal', retailerResult.rows[0].id]);
+      INSERT INTO retailer_brand_notes (retailer_id, brand_id, note_text, visibility, tags, created_by) 
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [retailerResult.rows[0].id, pureElementsBrand.rows[0].id, 'Great margins on organic line. Consider expanding to more SKUs next quarter. Contact Emma for pricing discussion.', 'private', ['high-margin', 'organic', 'expand'], retailerResult.rows[0].id]);
 
     // Add demo products
     await db.query(`
@@ -515,59 +535,43 @@ async function insertDemoData() {
       VALUES ($1, $2, $3, $4, $5, $6, $7)
     `, [techFoodsBrand.rows[0].id, 'Smart Protein Bars', 'AI-optimized nutrition bars with personalized macro profiles', 'Snacks', 'TF-SPB-001', 4.99, true]);
 
-    // Create default intake form
-    const intakeFormResult = await db.query(`
-      INSERT INTO intake_forms (name, description, is_active, created_by) 
-      VALUES ($1, $2, $3, $4) RETURNING id
-    `, ['Brand Onboarding Form', 'Standard form for collecting brand information and assets', true, retailerResult.rows[0].id]);
-
-    // Add form fields
-    const formFields = [
-      ['company_name', 'text', 'Company Name', true, 1],
-      ['contact_name', 'text', 'Primary Contact Name', true, 2],
-      ['contact_email', 'email', 'Contact Email', true, 3],
-      ['company_description', 'textarea', 'Company Description', true, 4],
-      ['website', 'url', 'Website URL', false, 5],
-      ['logo', 'file', 'Company Logo', false, 6]
-    ];
-
-    for (const field of formFields) {
+    // Create notification preferences for all users
+    const allUsers = [retailerResult.rows[0].id, retailer2Result.rows[0].id, brandResult.rows[0].id, brand2Result.rows[0].id];
+    for (const userId of allUsers) {
       await db.query(`
-        INSERT INTO form_fields (form_id, field_name, field_type, field_label, is_required, field_order) 
-        VALUES ($1, $2, $3, $4, $5, $6)
-      `, [intakeFormResult.rows[0].id, ...field]);
+        INSERT INTO notification_preferences (user_id) VALUES ($1)
+      `, [userId]);
     }
 
-    logger.info('✅ Demo data inserted successfully');
-    logger.info('🧪 Demo accounts created:');
-    logger.info('   Retailer: admin@freshmarket.example.com / password123');
-    logger.info('   Retailer: buyer@urbanretail.example.com / password123');
-    logger.info('   Brand: admin@pureelements.example.com / password123');
-    logger.info('   Brand: contact@techfoods.example.com / password123');
+    logger.info('✅ ROLLodex demo data inserted successfully');
+    logger.info('🧪 ROLLodex demo accounts created:');
+    logger.info('   🛒 Retailer: admin@freshmarket.example.com / password123');
+    logger.info('   🛒 Retailer: buyer@urbanretail.example.com / password123');
+    logger.info('   🏷️ Brand: admin@pureelements.example.com / password123');
+    logger.info('   🏷️ Brand: contact@techfoods.example.com / password123');
     
   } catch (error) {
-    logger.error('❌ Demo data insertion failed:', error);
+    logger.error('❌ ROLLodex demo data insertion failed:', error);
   }
 }
 
-// Audit logging function
-async function logAudit(userId, action, entityType, entityId, oldValues = null, newValues = null, req = null) {
+// Activity logging function
+async function logActivity(userId, action, entityType, entityId, metadata = null, req = null) {
   try {
     await db.query(`
-      INSERT INTO audit_log (user_id, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO activity_log (user_id, action, entity_type, entity_id, metadata, ip_address, user_agent) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
     `, [
       userId,
       action,
       entityType,
       entityId,
-      oldValues ? JSON.stringify(oldValues) : null,
-      newValues ? JSON.stringify(newValues) : null,
+      metadata ? JSON.stringify(metadata) : null,
       req?.ip,
       req?.get('User-Agent')
     ]);
   } catch (error) {
-    logger.error('Audit logging failed:', error);
+    logger.error('Activity logging failed:', error);
   }
 }
 
@@ -589,7 +593,7 @@ app.post('/api/auth/login', [
     }
 
     const { email, password } = req.body;
-    logger.info('Login attempt', { email });
+    logger.info('ROLLodex login attempt', { email });
 
     const result = await db.query('SELECT * FROM users WHERE email = $1 AND is_active = true', [email]);
     const user = result.rows[0];
@@ -605,12 +609,15 @@ app.post('/api/auth/login', [
     const validPassword = await bcrypt.compare(password, user.password_hash);
     if (!validPassword) {
       logger.warn('Login failed - invalid password', { email });
-      await logAudit(user.id, 'LOGIN_FAILED', 'user', user.id, null, { reason: 'invalid_password' }, req);
+      await logActivity(user.id, 'LOGIN_FAILED', 'user', user.id, { reason: 'invalid_password' }, req);
       return res.status(401).json({ 
         error: 'Invalid credentials',
         code: 'INVALID_CREDENTIALS'
       });
     }
+
+    // Update last login
+    await db.query('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
 
     const token = jwt.sign(
       { 
@@ -620,13 +627,13 @@ app.post('/api/auth/login', [
         companyName: user.company_name,
         companyType: user.company_type
       },
-      process.env.JWT_SECRET || 'fallback-secret',
+      process.env.JWT_SECRET || 'rollodex-secret-key',
       { expiresIn: '24h' }
     );
 
-    await logAudit(user.id, 'LOGIN_SUCCESS', 'user', user.id, null, { ip: req.ip }, req);
+    await logActivity(user.id, 'LOGIN_SUCCESS', 'user', user.id, { ip: req.ip }, req);
 
-    logger.info('Login successful', { userId: user.id, email });
+    logger.info('ROLLodex login successful', { userId: user.id, email });
 
     res.json({
       token,
@@ -645,7 +652,7 @@ app.post('/api/auth/login', [
     });
 
   } catch (error) {
-    logger.error('Login error:', error);
+    logger.error('ROLLodex login error:', error);
     res.status(500).json({ 
       error: 'Login failed', 
       code: 'SERVER_ERROR'
@@ -704,6 +711,11 @@ app.post('/api/auth/register', [
       `, [companyName, `Brand profile for ${companyName}`, 25, userId]);
     }
 
+    // Create notification preferences
+    await db.query(`
+      INSERT INTO notification_preferences (user_id) VALUES ($1)
+    `, [userId]);
+
     const token = jwt.sign(
       { 
         id: userId, 
@@ -712,13 +724,13 @@ app.post('/api/auth/register', [
         companyName,
         companyType
       },
-      process.env.JWT_SECRET || 'fallback-secret',
+      process.env.JWT_SECRET || 'rollodex-secret-key',
       { expiresIn: '24h' }
     );
 
-    await logAudit(userId, 'USER_REGISTERED', 'user', userId, null, { email, role }, req);
+    await logActivity(userId, 'USER_REGISTERED', 'user', userId, { email, role }, req);
 
-    logger.info('User registered successfully', { userId, email, companyType });
+    logger.info('ROLLodex user registered successfully', { userId, email, companyType });
 
     res.json({
       token,
@@ -737,7 +749,7 @@ app.post('/api/auth/register', [
     });
 
   } catch (error) {
-    logger.error('Registration error:', error);
+    logger.error('ROLLodex registration error:', error);
     res.status(500).json({ 
       error: 'Registration failed', 
       code: 'SERVER_ERROR'
@@ -750,7 +762,7 @@ app.get('/api/users/profile', authenticateToken, async (req, res) => {
   try {
     const result = await db.query(`
       SELECT id, email, first_name, last_name, role, company_name, company_type, 
-             phone, title, is_active, email_verified, created_at, updated_at 
+             phone, title, is_active, email_verified, last_login, created_at, updated_at 
       FROM users WHERE id = $1
     `, [req.user.id]);
     
@@ -775,6 +787,7 @@ app.get('/api/users/profile', authenticateToken, async (req, res) => {
         title: user.title,
         isActive: user.is_active,
         emailVerified: user.email_verified,
+        lastLogin: user.last_login,
         createdAt: user.created_at,
         updatedAt: user.updated_at
       }
@@ -789,77 +802,6 @@ app.get('/api/users/profile', authenticateToken, async (req, res) => {
   }
 });
 
-app.put('/api/users/profile', authenticateToken, [
-  body('firstName').optional().isLength({ min: 1 }).trim(),
-  body('lastName').optional().isLength({ min: 1 }).trim(),
-  body('phone').optional(),
-  body('title').optional()
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        error: 'Validation failed', 
-        details: errors.array() 
-      });
-    }
-
-    const { firstName, lastName, phone, title } = req.body;
-
-    // Get current user data for audit
-    const currentResult = await db.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
-    const currentUser = currentResult.rows[0];
-
-    const result = await db.query(`
-      UPDATE users 
-      SET first_name = COALESCE($1, first_name),
-          last_name = COALESCE($2, last_name),
-          phone = COALESCE($3, phone),
-          title = COALESCE($4, title),
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = $5
-      RETURNING *
-    `, [firstName, lastName, phone, title, req.user.id]);
-
-    const updatedUser = result.rows[0];
-
-    await logAudit(
-      req.user.id, 
-      'USER_PROFILE_UPDATED', 
-      'user', 
-      req.user.id,
-      { firstName: currentUser.first_name, lastName: currentUser.last_name, phone: currentUser.phone, title: currentUser.title },
-      { firstName, lastName, phone, title },
-      req
-    );
-
-    logger.info('User profile updated', { userId: req.user.id });
-
-    res.json({
-      message: 'Profile updated successfully',
-      user: {
-        id: updatedUser.id,
-        email: updatedUser.email,
-        firstName: updatedUser.first_name,
-        lastName: updatedUser.last_name,
-        role: updatedUser.role,
-        companyName: updatedUser.company_name,
-        companyType: updatedUser.company_type,
-        phone: updatedUser.phone,
-        title: updatedUser.title,
-        emailVerified: updatedUser.email_verified
-      }
-    });
-
-  } catch (error) {
-    logger.error('Profile update error:', error);
-    res.status(500).json({ 
-      error: 'Failed to update profile', 
-      code: 'SERVER_ERROR'
-    });
-  }
-});
-
 // BRAND ROUTES
 app.get('/api/brands', authenticateToken, async (req, res) => {
   try {
@@ -868,8 +810,8 @@ app.get('/api/brands', authenticateToken, async (req, res) => {
 
     let query = `
       SELECT b.*, u.company_name as owner_company, u.first_name, u.last_name,
-             COUNT(p.id) as product_count,
-             COUNT(r.id) as relationship_count
+             COUNT(DISTINCT p.id) as product_count,
+             COUNT(DISTINCT r.id) as relationship_count
       FROM brands b
       LEFT JOIN users u ON b.owner_id = u.id
       LEFT JOIN brand_products p ON b.id = p.brand_id AND p.is_active = true
@@ -894,7 +836,7 @@ app.get('/api/brands', authenticateToken, async (req, res) => {
 
     query += ` 
       GROUP BY b.id, u.company_name, u.first_name, u.last_name
-      ORDER BY b.created_at DESC
+      ORDER BY b.profile_completion_score DESC, b.created_at DESC
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
     `;
     
@@ -942,137 +884,11 @@ app.get('/api/brands', authenticateToken, async (req, res) => {
   }
 });
 
-app.get('/api/brands/:id', authenticateToken, async (req, res) => {
-  try {
-    const brandId = req.params.id;
-
-    const result = await db.query(`
-      SELECT b.*, u.company_name as owner_company, u.first_name, u.last_name, u.email as owner_email,
-             COUNT(DISTINCT p.id) as product_count,
-             COUNT(DISTINCT r.id) as relationship_count,
-             COUNT(DISTINCT a.id) as asset_count
-      FROM brands b
-      LEFT JOIN users u ON b.owner_id = u.id
-      LEFT JOIN brand_products p ON b.id = p.brand_id AND p.is_active = true
-      LEFT JOIN brand_retailer_relationships r ON b.id = r.brand_id
-      LEFT JOIN brand_assets a ON b.id = a.brand_id
-      WHERE b.id = $1
-      GROUP BY b.id, u.company_name, u.first_name, u.last_name, u.email
-    `, [brandId]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ 
-        error: 'Brand not found',
-        code: 'BRAND_NOT_FOUND'
-      });
-    }
-
-    const brand = result.rows[0];
-
-    // Get products
-    const productsResult = await db.query(`
-      SELECT * FROM brand_products 
-      WHERE brand_id = $1 AND is_active = true 
-      ORDER BY created_at DESC
-    `, [brandId]);
-
-    // Get assets (with permission filtering)
-    const assetsResult = await db.query(`
-      SELECT a.*, 
-             CASE 
-               WHEN a.permission_level = 'public' THEN true
-               WHEN a.permission_level = 'partners_only' AND EXISTS(
-                 SELECT 1 FROM brand_retailer_relationships r 
-                 WHERE r.brand_id = $1 AND r.retailer_id = $2 AND r.status = 'active'
-               ) THEN true
-               WHEN EXISTS(
-                 SELECT 1 FROM asset_permissions ap 
-                 WHERE ap.asset_id = a.id AND ap.retailer_id = $2
-               ) THEN true
-               ELSE false
-             END as can_access
-      FROM brand_assets a
-      WHERE a.brand_id = $1
-      ORDER BY a.created_at DESC
-    `, [brandId, req.user.id]);
-
-    // Get relationship with current user (if retailer)
-    let relationship = null;
-    if (req.user.role.includes('retailer')) {
-      const relationshipResult = await db.query(`
-        SELECT * FROM brand_retailer_relationships 
-        WHERE brand_id = $1 AND retailer_id = $2
-      `, [brandId, req.user.id]);
-      
-      if (relationshipResult.rows.length > 0) {
-        relationship = relationshipResult.rows[0];
-      }
-    }
-
-    res.json({
-      brand: {
-        ...brand,
-        products: productsResult.rows,
-        assets: assetsResult.rows,
-        relationship
-      }
-    });
-
-  } catch (error) {
-    logger.error('Brand fetch error:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch brand', 
-      code: 'SERVER_ERROR'
-    });
-  }
-});
-
 // ASSET ROUTES
-app.get('/api/brands/:brandId/assets', authenticateToken, async (req, res) => {
+app.post('/api/brands/:brandId/assets', authenticateToken, upload.array('files', 10), async (req, res) => {
   try {
     const { brandId } = req.params;
-
-    // Check permissions for assets
-    const result = await db.query(`
-      SELECT a.*, 
-             CASE 
-               WHEN a.permission_level = 'public' THEN true
-               WHEN a.permission_level = 'partners_only' AND EXISTS(
-                 SELECT 1 FROM brand_retailer_relationships r 
-                 WHERE r.brand_id = $1 AND r.retailer_id = $2 AND r.status = 'active'
-               ) THEN true
-               WHEN EXISTS(
-                 SELECT 1 FROM asset_permissions ap 
-                 WHERE ap.asset_id = a.id AND ap.retailer_id = $2
-               ) THEN true
-               ELSE false
-             END as can_access,
-             CASE 
-               WHEN a.permission_level = 'public' THEN 'public'
-               WHEN a.permission_level = 'partners_only' THEN 'partners_only'
-               WHEN a.permission_level = 'request_only' THEN 'request_only'
-               ELSE 'private'
-             END as permission_level_display
-      FROM brand_assets a
-      WHERE a.brand_id = $1
-      ORDER BY a.created_at DESC
-    `, [brandId, req.user.id]);
-
-    res.json({ assets: result.rows });
-
-  } catch (error) {
-    logger.error('Assets fetch error:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch assets', 
-      code: 'SERVER_ERROR'
-    });
-  }
-});
-
-app.post('/api/brands/:brandId/assets', authenticateToken, upload.array('files', 5), async (req, res) => {
-  try {
-    const { brandId } = req.params;
-    const { description, category, permission_level = 'partners_only' } = req.body;
+    const { description, category = 'general', permission_level = 'partners_only' } = req.body;
 
     // Verify brand ownership or admin access
     const brandResult = await db.query('SELECT owner_id FROM brands WHERE id = $1', [brandId]);
@@ -1105,21 +921,22 @@ app.post('/api/brands/:brandId/assets', authenticateToken, upload.array('files',
         file.size,
         file.path,
         description || null,
-        category || 'general',
+        category,
         permission_level,
         req.user.id
       ]);
 
       uploadedAssets.push(assetResult.rows[0]);
 
-      await logAudit(req.user.id, 'ASSET_UPLOADED', 'brand_asset', assetResult.rows[0].id, null, {
+      await logActivity(req.user.id, 'ASSET_UPLOADED', 'brand_asset', assetResult.rows[0].id, {
         brandId,
         filename: file.originalname,
-        permission_level
+        permission_level,
+        category
       }, req);
     }
 
-    logger.info('Assets uploaded successfully', { brandId, count: uploadedAssets.length, userId: req.user.id });
+    logger.info('ROLLodex assets uploaded successfully', { brandId, count: uploadedAssets.length, userId: req.user.id });
 
     res.json({
       message: `${uploadedAssets.length} asset(s) uploaded successfully`,
@@ -1135,274 +952,7 @@ app.post('/api/brands/:brandId/assets', authenticateToken, upload.array('files',
   }
 });
 
-app.get('/api/assets/:assetId/download', authenticateToken, async (req, res) => {
-  try {
-    const { assetId } = req.params;
-
-    // Get asset and check permissions
-    const result = await db.query(`
-      SELECT a.*, b.owner_id as brand_owner_id,
-             CASE 
-               WHEN a.permission_level = 'public' THEN true
-               WHEN a.permission_level = 'partners_only' AND EXISTS(
-                 SELECT 1 FROM brand_retailer_relationships r 
-                 WHERE r.brand_id = a.brand_id AND r.retailer_id = $2 AND r.status = 'active'
-               ) THEN true
-               WHEN EXISTS(
-                 SELECT 1 FROM asset_permissions ap 
-                 WHERE ap.asset_id = a.id AND ap.retailer_id = $2
-               ) THEN true
-               WHEN a.uploaded_by = $2 THEN true
-               WHEN b.owner_id = $2 THEN true
-               ELSE false
-             END as can_access
-      FROM brand_assets a
-      JOIN brands b ON a.brand_id = b.id
-      WHERE a.id = $1
-    `, [assetId, req.user.id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Asset not found' });
-    }
-
-    const asset = result.rows[0];
-
-    if (!asset.can_access) {
-      await logAudit(req.user.id, 'ASSET_ACCESS_DENIED', 'brand_asset', assetId, null, {
-        reason: 'insufficient_permissions'
-      }, req);
-      return res.status(403).json({ error: 'You do not have permission to access this asset' });
-    }
-
-    // Check if file exists
-    if (!fs.existsSync(asset.file_path)) {
-      logger.error('Asset file not found on disk', { assetId, filePath: asset.file_path });
-      return res.status(404).json({ error: 'Asset file not found' });
-    }
-
-    // Increment download count
-    await db.query('UPDATE brand_assets SET download_count = download_count + 1 WHERE id = $1', [assetId]);
-
-    await logAudit(req.user.id, 'ASSET_DOWNLOADED', 'brand_asset', assetId, null, {
-      filename: asset.original_name
-    }, req);
-
-    logger.info('Asset downloaded', { assetId, userId: req.user.id, filename: asset.original_name });
-
-    // Send file
-    res.download(asset.file_path, asset.original_name, (err) => {
-      if (err) {
-        logger.error('File download error:', err);
-        if (!res.headersSent) {
-          res.status(500).json({ error: 'Failed to download file' });
-        }
-      }
-    });
-
-  } catch (error) {
-    logger.error('Asset download error:', error);
-    res.status(500).json({ 
-      error: 'Failed to download asset', 
-      code: 'SERVER_ERROR'
-    });
-  }
-});
-
-// RELATIONSHIP ROUTES
-app.get('/api/relationships', authenticateToken, async (req, res) => {
-  try {
-    let query;
-    let params = [req.user.id];
-
-    if (req.user.role.includes('retailer')) {
-      // Get relationships from retailer perspective
-      query = `
-        SELECT r.*, b.name as brand_name, b.description as brand_description, 
-               b.industry, b.website, b.profile_completion_score,
-               u.first_name, u.last_name, u.email as brand_contact_email
-        FROM brand_retailer_relationships r
-        JOIN brands b ON r.brand_id = b.id
-        JOIN users u ON b.owner_id = u.id
-        WHERE r.retailer_id = $1
-        ORDER BY r.updated_at DESC
-      `;
-    } else {
-      // Get relationships from brand perspective
-      query = `
-        SELECT r.*, ret.name as retailer_name, ret.description as retailer_description,
-               ret.industry as retailer_industry, ret.website as retailer_website,
-               u.first_name, u.last_name, u.email as retailer_contact_email
-        FROM brand_retailer_relationships r
-        JOIN brands b ON r.brand_id = b.id
-        JOIN retailers ret ON r.retailer_id = ret.owner_id
-        JOIN users u ON ret.owner_id = u.id
-        WHERE b.owner_id = $1
-        ORDER BY r.updated_at DESC
-      `;
-    }
-
-    const result = await db.query(query, params);
-    res.json({ relationships: result.rows });
-
-  } catch (error) {
-    logger.error('Relationships fetch error:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch relationships', 
-      code: 'SERVER_ERROR'
-    });
-  }
-});
-
-app.post('/api/relationships', authenticateToken, [
-  body('brandId').isInt({ min: 1 }),
-  body('status').optional().isIn(['prospective', 'active', 'inactive', 'paused']),
-  body('partnershipType').optional().isLength({ max: 100 }),
-  body('notes').optional().isLength({ max: 1000 })
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        error: 'Validation failed', 
-        details: errors.array() 
-      });
-    }
-
-    const { brandId, status = 'prospective', partnershipType, startedDate, notes } = req.body;
-
-    // Only retailers can create relationships
-    if (!req.user.role.includes('retailer')) {
-      return res.status(403).json({ error: 'Only retailers can create brand relationships' });
-    }
-
-    // Check if brand exists
-    const brandResult = await db.query('SELECT id, name FROM brands WHERE id = $1', [brandId]);
-    if (brandResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Brand not found' });
-    }
-
-    // Check if relationship already exists
-    const existingResult = await db.query(
-      'SELECT id FROM brand_retailer_relationships WHERE brand_id = $1 AND retailer_id = $2',
-      [brandId, req.user.id]
-    );
-
-    if (existingResult.rows.length > 0) {
-      return res.status(409).json({ error: 'Relationship already exists' });
-    }
-
-    const result = await db.query(`
-      INSERT INTO brand_retailer_relationships (brand_id, retailer_id, status, partnership_type, started_date, notes, created_by) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
-    `, [brandId, req.user.id, status, partnershipType || null, startedDate || null, notes || null, req.user.id]);
-
-    const relationship = result.rows[0];
-
-    await logAudit(req.user.id, 'RELATIONSHIP_CREATED', 'brand_retailer_relationship', relationship.id, null, {
-      brandId,
-      status,
-      partnershipType
-    }, req);
-
-    logger.info('Brand relationship created', { 
-      relationshipId: relationship.id, 
-      brandId, 
-      retailerId: req.user.id 
-    });
-
-    res.json({
-      message: 'Brand relationship created successfully',
-      relationship
-    });
-
-  } catch (error) {
-    logger.error('Relationship creation error:', error);
-    res.status(500).json({ 
-      error: 'Failed to create relationship', 
-      code: 'SERVER_ERROR'
-    });
-  }
-});
-
-// NOTES ROUTES (Private retailer notes about brands)
-app.get('/api/brands/:brandId/notes', authenticateToken, async (req, res) => {
-  try {
-    const { brandId } = req.params;
-
-    // Only retailers can view their notes
-    if (!req.user.role.includes('retailer')) {
-      return res.status(403).json({ error: 'Only retailers can view brand notes' });
-    }
-
-    const result = await db.query(`
-      SELECT n.*, u.first_name, u.last_name 
-      FROM retailer_brand_notes n
-      JOIN users u ON n.created_by = u.id
-      WHERE n.brand_id = $1 AND n.retailer_id = $2
-      ORDER BY n.created_at DESC
-    `, [brandId, req.user.id]);
-
-    res.json({ notes: result.rows });
-
-  } catch (error) {
-    logger.error('Notes fetch error:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch notes', 
-      code: 'SERVER_ERROR'
-    });
-  }
-});
-
-app.post('/api/brands/:brandId/notes', authenticateToken, [
-  body('noteText').isLength({ min: 1, max: 2000 }).trim(),
-  body('visibility').optional().isIn(['private', 'internal', 'shared'])
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        error: 'Validation failed', 
-        details: errors.array() 
-      });
-    }
-
-    const { brandId } = req.params;
-    const { noteText, visibility = 'private' } = req.body;
-
-    // Only retailers can create notes
-    if (!req.user.role.includes('retailer')) {
-      return res.status(403).json({ error: 'Only retailers can create brand notes' });
-    }
-
-    const result = await db.query(`
-      INSERT INTO retailer_brand_notes (retailer_id, brand_id, note_text, visibility, created_by) 
-      VALUES ($1, $2, $3, $4, $5) RETURNING *
-    `, [req.user.id, brandId, noteText, visibility, req.user.id]);
-
-    const note = result.rows[0];
-
-    await logAudit(req.user.id, 'BRAND_NOTE_CREATED', 'retailer_brand_note', note.id, null, {
-      brandId,
-      visibility
-    }, req);
-
-    logger.info('Brand note created', { noteId: note.id, brandId, userId: req.user.id });
-
-    res.json({
-      message: 'Note created successfully',
-      note
-    });
-
-  } catch (error) {
-    logger.error('Note creation error:', error);
-    res.status(500).json({ 
-      error: 'Failed to create note', 
-      code: 'SERVER_ERROR'
-    });
-  }
-});
-
-// STATISTICS AND ANALYTICS ROUTES
+// ANALYTICS ROUTES
 app.get('/api/analytics/dashboard', authenticateToken, async (req, res) => {
   try {
     const stats = {};
@@ -1474,26 +1024,46 @@ app.get('/api/analytics/dashboard', authenticateToken, async (req, res) => {
   }
 });
 
-// INTAKE FORMS ROUTES
-app.get('/api/forms', authenticateToken, async (req, res) => {
+// RELATIONSHIPS ROUTES
+app.get('/api/relationships', authenticateToken, async (req, res) => {
   try {
-    const result = await db.query(`
-      SELECT f.*, u.first_name, u.last_name,
-             COUNT(fr.id) as response_count
-      FROM intake_forms f
-      LEFT JOIN users u ON f.created_by = u.id
-      LEFT JOIN form_responses fr ON f.id = fr.form_id
-      WHERE f.is_active = true
-      GROUP BY f.id, u.first_name, u.last_name
-      ORDER BY f.created_at DESC
-    `);
+    let query;
+    let params = [req.user.id];
 
-    res.json({ forms: result.rows });
+    if (req.user.role.includes('retailer')) {
+      // Get relationships from retailer perspective
+      query = `
+        SELECT r.*, b.name as brand_name, b.description as brand_description, 
+               b.industry, b.website, b.profile_completion_score, b.is_verified,
+               u.first_name, u.last_name, u.email as brand_contact_email
+        FROM brand_retailer_relationships r
+        JOIN brands b ON r.brand_id = b.id
+        JOIN users u ON b.owner_id = u.id
+        WHERE r.retailer_id = $1
+        ORDER BY r.priority DESC, r.updated_at DESC
+      `;
+    } else {
+      // Get relationships from brand perspective
+      query = `
+        SELECT r.*, ret.name as retailer_name, ret.description as retailer_description,
+               ret.industry as retailer_industry, ret.website as retailer_website,
+               u.first_name, u.last_name, u.email as retailer_contact_email
+        FROM brand_retailer_relationships r
+        JOIN brands b ON r.brand_id = b.id
+        JOIN retailers ret ON r.retailer_id = ret.owner_id
+        JOIN users u ON ret.owner_id = u.id
+        WHERE b.owner_id = $1
+        ORDER BY r.priority DESC, r.updated_at DESC
+      `;
+    }
+
+    const result = await db.query(query, params);
+    res.json({ relationships: result.rows });
 
   } catch (error) {
-    logger.error('Forms fetch error:', error);
+    logger.error('Relationships fetch error:', error);
     res.status(500).json({ 
-      error: 'Failed to fetch forms', 
+      error: 'Failed to fetch relationships', 
       code: 'SERVER_ERROR'
     });
   }
@@ -1515,7 +1085,7 @@ if (process.env.NODE_ENV === 'production') {
 
 // 404 handler for API routes only
 app.use('/api/*', (req, res) => {
-  logger.warn('API route not found', { path: req.path, method: req.method });
+  logger.warn('ROLLodex API route not found', { path: req.path, method: req.method });
   res.status(404).json({
     error: 'API endpoint not found',
     path: req.originalUrl
@@ -1524,7 +1094,7 @@ app.use('/api/*', (req, res) => {
 
 // Global error handler
 app.use((error, req, res, next) => {
-  logger.error('Global error handler:', error);
+  logger.error('ROLLodex global error handler:', error);
 
   // Multer errors
   if (error.code === 'LIMIT_FILE_SIZE') {
@@ -1532,10 +1102,10 @@ app.use((error, req, res, next) => {
   }
   
   if (error.code === 'LIMIT_FILE_COUNT') {
-    return res.status(400).json({ error: 'Too many files. Maximum is 5 files.' });
+    return res.status(400).json({ error: 'Too many files. Maximum is 10 files.' });
   }
 
-  if (error.message === 'Invalid file type. Only images and documents allowed.') {
+  if (error.message === 'Invalid file type. Only images, PDFs, and documents allowed.') {
     return res.status(400).json({ error: error.message });
   }
 
@@ -1547,38 +1117,38 @@ app.use((error, req, res, next) => {
 
 // Start server
 const server = app.listen(PORT, async () => {
-  logger.info(`🚀 Brand Central API server running on port ${PORT}`);
+  logger.info(`🚀 ROLLodex API server running on port ${PORT}`);
   logger.info(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   logger.info(`🔗 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
   
   try {
     // Initialize database
     await initDatabase();
-    logger.info('🎉 Brand Central API is ready!');
+    logger.info('🎉 ROLLodex API is ready and running!');
   } catch (error) {
-    logger.error('Failed to initialize database:', error);
+    logger.error('Failed to initialize ROLLodex database:', error);
     process.exit(1);
   }
 });
 
 // Graceful shutdown
 const gracefulShutdown = async (signal) => {
-  logger.info(`${signal} received, shutting down gracefully`);
+  logger.info(`${signal} received, shutting down ROLLodex API gracefully`);
   
   server.close(async () => {
     try {
       await db.end();
-      logger.info('Database connections closed');
+      logger.info('ROLLodex database connections closed');
       process.exit(0);
     } catch (error) {
-      logger.error('Error during shutdown:', error);
+      logger.error('Error during ROLLodex shutdown:', error);
       process.exit(1);
     }
   });
 
   // Force close after 10 seconds
   setTimeout(() => {
-    logger.error('Could not close connections in time, forcefully shutting down');
+    logger.error('Could not close ROLLodex connections in time, forcefully shutting down');
     process.exit(1);
   }, 10000);
 };
