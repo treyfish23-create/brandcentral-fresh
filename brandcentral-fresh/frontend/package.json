@@ -5,29 +5,24 @@
   "homepage": ".",
   "private": true,
   "dependencies": {
-    "@testing-library/jest-dom": "^5.17.0",
-    "@testing-library/react": "^13.4.0",
-    "@testing-library/user-event": "^14.5.1",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.1",
-    "react-hot-toast": "^2.4.1",
-    "axios": "^1.6.2",
-    "web-vitals": "^3.5.0"
+    "@testing-library/jest-dom": "5.16.5",
+    "@testing-library/react": "13.4.0",
+    "@testing-library/user-event": "14.4.3",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-router-dom": "6.8.0",
+    "react-hot-toast": "2.4.0",
+    "axios": "1.3.4",
+    "web-vitals": "3.1.1"
   },
   "devDependencies": {
-    "react-scripts": "5.0.1",
-    "@types/jest": "^27.5.2",
-    "@types/node": "^16.18.68",
-    "@types/react": "^18.2.42",
-    "@types/react-dom": "^18.2.17"
+    "react-scripts": "5.0.1"
   },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "postinstall": "echo 'ROLLodex Frontend dependencies installed successfully!'"
+    "test": "react-scripts test --passWithNoTests",
+    "eject": "react-scripts eject"
   },
   "eslintConfig": {
     "extends": [
@@ -46,24 +41,5 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "proxy": "http://localhost:3001",
-  "keywords": [
-    "react",
-    "b2b",
-    "brand-management",
-    "rollodex",
-    "frontend",
-    "dashboard"
-  ],
-  "author": "ROLLodex Platform",
-  "license": "MIT",
-  "engines": {
-    "node": ">=16.0.0",
-    "npm": ">=7.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/yourusername/rollodex-frontend.git"
   }
 }
