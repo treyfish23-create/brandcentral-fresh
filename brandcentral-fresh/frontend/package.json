@@ -1,35 +1,50 @@
 {
   "name": "rollodx-frontend-enterprise",
   "version": "1.0.0",
-  "description": "ROLLodx Enterprise B2B SaaS Frontend - Complete React application for brand management platform",
+  "description": "ROLLodx Enterprise B2B SaaS Frontend - Complete React application for brand management platform with 100+ components",
   "private": true,
   "homepage": "https://rollodx.vercel.app",
   "scripts": {
     "dev": "react-scripts start",
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build": "react-scripts build && npm run generate-sitemap",
     "test": "react-scripts test",
     "test:coverage": "react-scripts test --coverage --watchAll=false",
+    "test:e2e": "cypress run",
+    "test:e2e:open": "cypress open",
     "eject": "react-scripts eject",
     "lint": "eslint src --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint src --ext .js,.jsx,.ts,.tsx --fix",
     "format": "prettier --write src/**/*.{js,jsx,ts,tsx,json,css,md}",
     "type-check": "tsc --noEmit",
     "analyze": "npm run build && npx bundle-analyzer build/static/js/*.js",
-    "preview": "npm run build && serve -s build",
-    "deploy": "npm run build && vercel --prod"
+    "analyze:size": "npm run build && npx source-map-explorer 'build/static/js/*.js'",
+    "preview": "npm run build && serve -s build -p 3000",
+    "deploy": "npm run build && vercel --prod",
+    "deploy:staging": "npm run build && vercel",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "generate-sitemap": "node scripts/generate-sitemap.js",
+    "pre-commit": "lint-staged",
+    "postinstall": "patch-package",
+    "clean": "rimraf build node_modules/.cache",
+    "reset": "npm run clean && npm install"
   },
   "keywords": [
     "react",
+    "typescript",
     "b2b",
     "saas",
+    "enterprise",
     "brand-management",
     "cannabis",
     "retail",
     "crm",
     "frontend",
-    "enterprise",
-    "dashboard"
+    "dashboard",
+    "multi-tenant",
+    "responsive",
+    "pwa"
   ],
   "author": {
     "name": "Trey Fisher",
@@ -45,76 +60,285 @@
     "url": "https://github.com/rollodx/rollodx-frontend/issues"
   },
   "engines": {
-    "node": ">=16.0.0",
-    "npm": ">=8.0.0"
+    "node": ">=16.20.0",
+    "npm": ">=8.19.0"
   },
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.8.1",
+    "react-router-dom": "^6.20.1",
     "react-scripts": "5.0.1",
+    
     "axios": "^1.6.2",
     "react-hot-toast": "^2.4.1",
+    
     "@headlessui/react": "^1.7.17",
     "@heroicons/react": "^2.0.18",
-    "clsx": "^2.0.0",
-    "date-fns": "^2.30.0",
-    "framer-motion": "^10.16.16",
+    "@radix-ui/react-accordion": "^1.1.2",
+    "@radix-ui/react-avatar": "^1.0.4",
+    "@radix-ui/react-checkbox": "^1.0.4",
+    "@radix-ui/react-collapsible": "^1.0.3",
+    "@radix-ui/react-context-menu": "^2.1.5",
+    "@radix-ui/react-dialog": "^1.0.5",
+    "@radix-ui/react-dropdown-menu": "^2.0.6",
+    "@radix-ui/react-hover-card": "^1.0.7",
+    "@radix-ui/react-label": "^2.0.2",
+    "@radix-ui/react-menubar": "^1.0.4",
+    "@radix-ui/react-navigation-menu": "^1.1.4",
+    "@radix-ui/react-popover": "^1.0.7",
+    "@radix-ui/react-progress": "^1.0.3",
+    "@radix-ui/react-radio-group": "^1.1.3",
+    "@radix-ui/react-scroll-area": "^1.0.5",
+    "@radix-ui/react-select": "^2.0.0",
+    "@radix-ui/react-separator": "^1.0.3",
+    "@radix-ui/react-slider": "^1.1.2",
+    "@radix-ui/react-switch": "^1.0.3",
+    "@radix-ui/react-tabs": "^1.0.4",
+    "@radix-ui/react-toast": "^1.1.5",
+    "@radix-ui/react-toggle": "^1.0.3",
+    "@radix-ui/react-toggle-group": "^1.0.4",
+    "@radix-ui/react-tooltip": "^1.0.7",
+    
     "react-hook-form": "^7.48.2",
-    "react-query": "^3.39.3",
+    "@hookform/resolvers": "^3.3.2",
+    "yup": "^1.4.0",
+    "zod": "^3.22.4",
+    
     "@tanstack/react-query": "^5.8.4",
+    "@tanstack/react-query-devtools": "^5.8.4",
+    "react-query": "^3.39.3",
+    
+    "framer-motion": "^10.16.16",
+    "react-spring": "^9.7.3",
+    "react-transition-group": "^4.4.5",
+    "react-flip-toolkit": "^7.1.4",
+    
     "react-intersection-observer": "^9.5.3",
+    "react-use": "^17.4.0",
+    "react-hotkeys-hook": "^4.4.1",
+    "react-use-gesture": "^9.1.3",
+    "react-resize-observer-hook": "^1.2.6",
+    
     "react-dropzone": "^14.2.3",
     "react-beautiful-dnd": "^13.1.1",
+    "react-sortable-hoc": "^2.0.0",
+    "@dnd-kit/core": "^6.1.0",
+    "@dnd-kit/sortable": "^8.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    
     "react-virtualized": "^9.22.5",
     "react-window": "^1.8.8",
+    "react-window-infinite-loader": "^1.0.9",
+    "@tanstack/react-virtual": "^3.0.0-beta.60",
+    
     "react-select": "^5.8.0",
     "react-datepicker": "^4.21.0",
+    "react-day-picker": "^8.9.1",
+    "@react-aria/datepicker": "^3.9.1",
+    "react-color": "^2.19.3",
+    "react-colorful": "^5.6.1",
+    
     "react-image-gallery": "^1.3.0",
+    "react-image-crop": "^10.1.8",
     "react-cropper": "^2.3.3",
+    "react-image-magnifiers": "^1.4.0",
+    "react-photo-view": "^1.2.4",
+    
     "recharts": "^2.8.0",
     "chart.js": "^4.4.0",
     "react-chartjs-2": "^5.2.0",
     "d3": "^7.8.5",
-    "lodash": "^4.17.21",
-    "uuid": "^9.0.1",
+    "d3-scale": "^4.0.2",
+    "d3-shape": "^3.2.0",
+    "react-vis": "^1.12.1",
+    "victory": "^36.6.11",
+    
+    "react-table": "^7.8.0",
+    "@tanstack/react-table": "^8.11.2",
+    "react-data-grid": "^7.0.0-beta.44",
+    
+    "react-markdown": "^9.0.1",
+    "react-syntax-highlighter": "^15.5.0",
+    "remark-gfm": "^4.0.0",
+    "rehype-raw": "^7.0.0",
+    
+    "react-pdf": "^7.5.1",
+    "react-excel-renderer": "^1.1.0",
+    "papaparse": "^5.4.1",
+    "xlsx": "^0.18.5",
+    "file-saver": "^2.0.5",
+    "jszip": "^3.10.1",
+    
+    "socket.io-client": "^4.7.4",
+    "pusher-js": "^8.4.0-rc2",
+    "ably": "^1.2.47",
+    
+    "swr": "^2.2.4",
+    "immer": "^10.0.3",
+    "zustand": "^4.4.7",
+    "jotai": "^2.6.0",
+    
+    "react-error-boundary": "^4.0.11",
+    "react-helmet-async": "^2.0.4",
+    "react-lazyload": "^3.2.0",
+    "react-loading-skeleton": "^3.3.1",
+    
+    "clsx": "^2.0.0",
     "classnames": "^2.3.2",
+    "tailwind-merge": "^2.1.0",
+    "cva": "^1.0.0",
+    
+    "date-fns": "^2.30.0",
+    "dayjs": "^1.11.10",
+    "moment": "^2.29.4",
+    
+    "lodash": "^4.17.21",
+    "lodash-es": "^4.17.21",
+    "ramda": "^0.29.1",
+    "uuid": "^9.0.1",
+    "nanoid": "^5.0.4",
+    "short-uuid": "^4.2.2",
+    
+    "validator": "^13.11.0",
+    "libphonenumber-js": "^1.10.51",
+    "countries-list": "^3.0.6",
+    
+    "fuse.js": "^7.0.0",
+    "match-sorter": "^6.3.1",
+    "lunr": "^2.3.9",
+    
+    "react-router-hash-link": "^2.4.3",
+    "history": "^5.3.0",
+    "query-string": "^8.1.0",
+    
+    "react-ga4": "^2.1.0",
+    "@sentry/react": "^7.81.1",
+    "@sentry/tracing": "^7.81.1",
+    "mixpanel-browser": "^2.47.0",
+    "hotjar": "^1.0.1",
+    
+    "react-device-detect": "^2.2.3",
+    "ua-parser-js": "^1.0.37",
+    "bowser": "^2.11.0",
+    
+    "workbox-webpack-plugin": "^7.0.0",
+    "workbox-window": "^7.0.0",
+    
     "prop-types": "^15.8.1",
     "web-vitals": "^3.5.0",
-    "workbox-webpack-plugin": "^7.0.0",
-    "@testing-library/jest-dom": "^6.1.5",
-    "@testing-library/react": "^13.4.0",
-    "@testing-library/user-event": "^14.5.1"
+    "performance-observer": "^0.0.1"
   },
   "devDependencies": {
     "@types/react": "^18.2.45",
     "@types/react-dom": "^18.2.18",
     "@types/react-router-dom": "^5.3.3",
     "@types/lodash": "^4.14.202",
+    "@types/lodash-es": "^4.17.12",
     "@types/uuid": "^9.0.7",
     "@types/d3": "^7.4.3",
+    "@types/d3-scale": "^4.0.8",
+    "@types/d3-shape": "^3.1.6",
+    "@types/file-saver": "^2.0.7",
+    "@types/papaparse": "^5.3.14",
+    "@types/validator": "^13.11.7",
+    "@types/ua-parser-js": "^0.7.39",
+    "@types/react-beautiful-dnd": "^13.1.8",
+    "@types/react-virtualized": "^9.21.29",
+    "@types/react-window": "^1.8.8",
+    "@types/react-color": "^3.0.9",
+    "@types/react-table": "^7.7.18",
+    "@types/react-syntax-highlighter": "^15.5.11",
+    
     "@typescript-eslint/eslint-plugin": "^6.13.2",
     "@typescript-eslint/parser": "^6.13.2",
+    "typescript": "^5.3.3",
+    
     "eslint": "^8.55.0",
     "eslint-config-react-app": "^7.0.1",
     "eslint-plugin-react": "^7.33.2",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-jsx-a11y": "^6.8.0",
     "eslint-plugin-import": "^2.29.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.0.1",
+    
     "prettier": "^3.1.1",
+    "prettier-plugin-organize-imports": "^3.2.4",
+    "prettier-plugin-tailwindcss": "^0.5.9",
+    
     "tailwindcss": "^3.3.6",
     "autoprefixer": "^10.4.16",
     "postcss": "^8.4.32",
-    "typescript": "^5.3.3",
+    "@tailwindcss/forms": "^0.5.7",
+    "@tailwindcss/typography": "^0.5.10",
+    "@tailwindcss/aspect-ratio": "^0.4.2",
+    "@tailwindcss/container-queries": "^0.1.1",
+    
+    "sass": "^1.69.5",
+    "sass-loader": "^13.3.2",
+    "@types/sass": "^1.45.0",
+    
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^14.5.1",
+    "@testing-library/react-hooks": "^8.0.1",
+    "jest-environment-jsdom": "^29.7.0",
+    "jest-canvas-mock": "^2.5.2",
+    
+    "@storybook/addon-essentials": "^7.6.3",
+    "@storybook/addon-interactions": "^7.6.3",
+    "@storybook/addon-links": "^7.6.3",
+    "@storybook/addon-onboarding": "^1.0.10",
+    "@storybook/blocks": "^7.6.3",
+    "@storybook/react": "^7.6.3",
+    "@storybook/react-webpack5": "^7.6.3",
+    "@storybook/testing-library": "^0.2.2",
+    "storybook": "^7.6.3",
+    
+    "cypress": "^13.6.1",
+    "@cypress/react": "^8.0.0",
+    "@cypress/webpack-dev-server": "^3.7.0",
+    "cypress-axe": "^1.5.0",
+    "cypress-real-events": "^1.11.0",
+    
     "serve": "^14.2.1",
     "cross-env": "^7.0.3",
     "dotenv": "^16.3.1",
+    "dotenv-expand": "^10.0.0",
+    
     "husky": "^8.0.3",
     "lint-staged": "^15.2.0",
+    "commitizen": "^4.3.0",
+    "cz-conventional-changelog": "^3.3.0",
+    "@commitlint/cli": "^18.4.3",
+    "@commitlint/config-conventional": "^18.4.3",
+    
     "@craco/craco": "^7.1.0",
     "craco-alias": "^3.0.1",
+    "craco-babel-loader": "^1.0.4",
+    
+    "webpack-bundle-analyzer": "^4.10.1",
     "bundle-analyzer": "^4.0.0",
-    "source-map-explorer": "^2.5.3"
+    "source-map-explorer": "^2.5.3",
+    "duplicate-package-checker-webpack-plugin": "^3.0.0",
+    
+    "patch-package": "^8.0.0",
+    "postinstall-postinstall": "^2.1.0",
+    "rimraf": "^5.0.5",
+    "npm-run-all": "^4.1.5",
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.2",
+    
+    "@graphql-codegen/cli": "^5.0.0",
+    "@graphql-codegen/typescript": "^4.0.1",
+    "@graphql-codegen/typescript-operations": "^4.0.1",
+    "@graphql-codegen/typescript-react-apollo": "^3.3.7",
+    "apollo": "^2.34.0",
+    
+    "msw": "^2.0.11",
+    "@mswjs/data": "^0.16.1",
+    "faker": "^6.6.6",
+    "@faker-js/faker": "^8.3.1"
   },
   "peerDependencies": {
     "react": ">=18.0.0",
@@ -124,7 +348,8 @@
     "production": [
       ">0.2%",
       "not dead",
-      "not op_mini all"
+      "not op_mini all",
+      "not ie <= 11"
     ],
     "development": [
       "last 1 chrome version",
@@ -135,14 +360,25 @@
   "eslintConfig": {
     "extends": [
       "react-app",
-      "react-app/jest"
+      "react-app/jest",
+      "prettier"
     ],
     "rules": {
       "no-unused-vars": "warn",
       "no-console": "warn",
       "prefer-const": "error",
-      "react-hooks/exhaustive-deps": "warn"
-    }
+      "react-hooks/exhaustive-deps": "warn",
+      "@typescript-eslint/no-unused-vars": "warn",
+      "jsx-a11y/anchor-is-valid": "warn"
+    },
+    "overrides": [
+      {
+        "files": ["**/*.stories.*"],
+        "rules": {
+          "import/no-anonymous-default-export": "off"
+        }
+      }
+    ]
   },
   "prettier": {
     "semi": true,
@@ -150,23 +386,30 @@
     "singleQuote": true,
     "printWidth": 80,
     "tabWidth": 2,
-    "useTabs": false
+    "useTabs": false,
+    "bracketSpacing": true,
+    "arrowParens": "avoid",
+    "endOfLine": "lf"
   },
   "husky": {
     "hooks": {
-      "pre-commit": "lint-staged"
+      "pre-commit": "lint-staged",
+      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
     }
   },
   "lint-staged": {
     "src/**/*.{js,jsx,ts,tsx}": [
       "eslint --fix",
-      "prettier --write",
-      "git add"
+      "prettier --write"
     ],
-    "src/**/*.{json,css,md}": [
-      "prettier --write",
-      "git add"
+    "src/**/*.{json,css,scss,md}": [
+      "prettier --write"
     ]
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
   },
   "proxy": "http://localhost:3001",
   "jest": {
@@ -174,15 +417,20 @@
       "src/**/*.{js,jsx,ts,tsx}",
       "!src/index.js",
       "!src/reportWebVitals.js",
-      "!src/**/*.test.{js,jsx,ts,tsx}"
+      "!src/**/*.test.{js,jsx,ts,tsx}",
+      "!src/**/*.stories.{js,jsx,ts,tsx}",
+      "!src/setupTests.js"
     ],
     "coverageThreshold": {
       "global": {
-        "branches": 80,
-        "functions": 80,
-        "lines": 80,
-        "statements": 80
+        "branches": 85,
+        "functions": 85,
+        "lines": 85,
+        "statements": 85
       }
     }
+  },
+  "msw": {
+    "workerDirectory": "public"
   }
 }
