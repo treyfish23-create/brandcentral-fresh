@@ -67,7 +67,7 @@ if (!fs.existsSync(brandUploadsDir)) {
 // File upload configuration
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const brandId = req.params.brandId || 'temp';
+    const brandId = req.params.brandId || req.body.brandId || 'temp';
     const brandDir = path.join(brandUploadsDir, brandId.toString());
     if (!fs.existsSync(brandDir)) {
       fs.mkdirSync(brandDir, { recursive: true });
@@ -87,14 +87,14 @@ const upload = multer({
     files: 10 // Max 10 files
   },
   fileFilter: function (req, file, cb) {
-    const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx|xls|xlsx|ppt|pptx/;
+    const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx|xls|xlsx|ppt|pptx|zip|mp4|mov/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
     
     if (mimetype && extname) {
       return cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only images, PDFs, and documents allowed.'));
+      cb(new Error('Invalid file type. Only images, documents, and videos allowed.'));
     }
   }
 });
@@ -201,7 +201,7 @@ app.get('/health', async (req, res) => {
       environment: process.env.NODE_ENV || 'development',
       database: 'connected',
       uptime: process.uptime(),
-      version: '1.0.0',
+      version: '2.0.0',
       dbTime: result.rows[0].now
     });
   } catch (error) {
@@ -249,6 +249,8 @@ async function initDatabase() {
         description TEXT,
         industry VARCHAR(100),
         website VARCHAR(255),
+        email VARCHAR(255),
+        phone VARCHAR(50),
         address TEXT,
         city VARCHAR(100),
         state VARCHAR(50),
@@ -257,6 +259,7 @@ async function initDatabase() {
         logo_url VARCHAR(255),
         profile_completion_score INTEGER DEFAULT 0,
         is_verified BOOLEAN DEFAULT false,
+        is_public BOOLEAN DEFAULT true,
         owner_id INTEGER REFERENCES users(id),
         settings JSONB DEFAULT '{}',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -272,6 +275,8 @@ async function initDatabase() {
         description TEXT,
         industry VARCHAR(100),
         website VARCHAR(255),
+        email VARCHAR(255),
+        phone VARCHAR(50),
         address TEXT,
         city VARCHAR(100),
         state VARCHAR(50),
@@ -331,6 +336,7 @@ async function initDatabase() {
         file_type VARCHAR(100),
         file_size INTEGER,
         file_path VARCHAR(500),
+        file_url VARCHAR(500),
         description TEXT,
         category VARCHAR(100) DEFAULT 'general',
         permission_level VARCHAR(50) DEFAULT 'partners_only',
@@ -377,6 +383,7 @@ async function initDatabase() {
     await pool.query('CREATE INDEX IF NOT EXISTS idx_users_company_type ON users(company_type)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_brands_owner ON brands(owner_id)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_brands_industry ON brands(industry)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_brands_public ON brands(is_public)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_relationships_brand ON brand_retailer_relationships(brand_id)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_relationships_retailer ON brand_retailer_relationships(retailer_id)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_assets_brand ON brand_assets(brand_id)');
@@ -398,7 +405,7 @@ async function insertDemoData() {
     // Check if demo data exists
     const existingUsers = await pool.query('SELECT COUNT(*) FROM users');
     if (parseInt(existingUsers.rows[0].count) > 0) {
-      logger.info('✅ ROLLodex demo data already exists');
+      logger.info('✅ ROLLodx demo data already exists');
       return;
     }
 
@@ -429,42 +436,73 @@ async function insertDemoData() {
 
     // Create brand profiles
     const pureElementsBrand = await pool.query(`
-      INSERT INTO brands (name, description, industry, website, address, city, state, country, postal_code, profile_completion_score, is_verified, owner_id) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id
-    `, ['Pure Elements', 'Organic and natural food products made with sustainable practices and premium ingredients', 'Natural Foods', 'https://pureelements.com', '789 Green Valley Road', 'Boulder', 'CO', 'USA', '80301', 87, true, brandResult.rows[0].id]);
+      INSERT INTO brands (name, description, industry, website, email, phone, address, city, state, country, postal_code, profile_completion_score, is_verified, owner_id) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id
+    `, ['Pure Elements', 'Organic and natural food products made with sustainable practices and premium ingredients sourced from local farms.', 'Natural Foods', 'https://pureelements.com', 'hello@pureelements.com', '+1-555-0789', '789 Green Valley Road', 'Boulder', 'CO', 'USA', '80301', 87, true, brandResult.rows[0].id]);
 
     const techFoodsBrand = await pool.query(`
-      INSERT INTO brands (name, description, industry, website, address, city, state, country, postal_code, profile_completion_score, is_verified, owner_id) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id
-    `, ['TechFoods Innovation', 'Next-generation food technology company creating innovative snacks and beverages', 'Food Technology', 'https://techfoods.io', '321 Innovation Drive', 'Austin', 'TX', 'USA', '73301', 78, false, brand2Result.rows[0].id]);
+      INSERT INTO brands (name, description, industry, website, email, phone, address, city, state, country, postal_code, profile_completion_score, is_verified, owner_id) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id
+    `, ['TechFoods Innovation', 'Next-generation food technology company creating innovative snacks and beverages powered by AI-driven nutrition science.', 'Food Technology', 'https://techfoods.io', 'contact@techfoods.io', '+1-555-0321', '321 Innovation Drive', 'Austin', 'TX', 'USA', '73301', 78, false, brand2Result.rows[0].id]);
+
+    // Additional demo brands
+    const organicBrand = await pool.query(`
+      INSERT INTO brands (name, description, industry, website, email, phone, profile_completion_score, is_public, owner_id) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id
+    `, ['Organic Valley Plus', 'Premium organic produce and dairy products from certified sustainable farms', 'Organic Foods', 'https://organicvalleyplus.com', 'info@organicvalleyplus.com', '+1-555-1122', 92, true, brandResult.rows[0].id]);
+
+    const craftBrand = await pool.query(`
+      INSERT INTO brands (name, description, industry, website, email, phone, profile_completion_score, is_public, owner_id) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id
+    `, ['Craft Beverage Co', 'Artisanal sodas and beverages made with natural ingredients and unique flavor profiles', 'Beverages', 'https://craftbeverage.co', 'hello@craftbeverage.co', '+1-555-3344', 85, true, brand2Result.rows[0].id]);
 
     // Create retailer profiles
     await pool.query(`
-      INSERT INTO retailers (name, description, industry, website, address, city, state, country, postal_code, owner_id) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    `, ['Fresh Market Co', 'Premium grocery chain specializing in fresh, organic, and locally sourced products', 'Retail - Grocery', 'https://freshmarketco.com', '123 Market Street', 'Seattle', 'WA', 'USA', '98101', retailerResult.rows[0].id]);
+      INSERT INTO retailers (name, description, industry, website, email, phone, address, city, state, country, postal_code, owner_id) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    `, ['Fresh Market Co', 'Premium grocery chain specializing in fresh, organic, and locally sourced products with 50+ locations', 'Retail - Grocery', 'https://freshmarketco.com', 'procurement@freshmarketco.com', '+1-555-0123', '123 Market Street', 'Seattle', 'WA', 'USA', '98101', retailerResult.rows[0].id]);
+
+    await pool.query(`
+      INSERT INTO retailers (name, description, industry, website, email, phone, address, city, state, country, postal_code, owner_id) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    `, ['Urban Retail', 'Modern retail chain focused on emerging brands and innovative products', 'Retail - Specialty', 'https://urbanretail.com', 'buyers@urbanretail.com', '+1-555-0456', '456 Urban Avenue', 'Austin', 'TX', 'USA', '78701', retailer2Result.rows[0].id]);
 
     // Create brand-retailer relationships
     await pool.query(`
       INSERT INTO brand_retailer_relationships (brand_id, retailer_id, status, partnership_type, started_date, notes, priority, created_by) 
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    `, [pureElementsBrand.rows[0].id, retailerResult.rows[0].id, 'active', 'Preferred Vendor', '2023-08-15', 'Excellent partnership with consistent quality and delivery', 'high', retailerResult.rows[0].id]);
+    `, [pureElementsBrand.rows[0].id, retailerResult.rows[0].id, 'active', 'Preferred Vendor', '2023-08-15', 'Excellent partnership with consistent quality and delivery. One of our top-performing organic brands.', 'high', retailerResult.rows[0].id]);
 
     await pool.query(`
       INSERT INTO brand_retailer_relationships (brand_id, retailer_id, status, partnership_type, notes, priority, created_by) 
       VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `, [techFoodsBrand.rows[0].id, retailer2Result.rows[0].id, 'prospective', 'New Vendor Evaluation', 'Promising new brand with innovative products', 'normal', retailer2Result.rows[0].id]);
+    `, [techFoodsBrand.rows[0].id, retailer2Result.rows[0].id, 'prospective', 'New Vendor Evaluation', 'Promising new brand with innovative products and strong market potential', 'high', retailer2Result.rows[0].id]);
+
+    await pool.query(`
+      INSERT INTO brand_retailer_relationships (brand_id, retailer_id, status, partnership_type, notes, priority, created_by) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [organicBrand.rows[0].id, retailerResult.rows[0].id, 'pending', 'Standard Vendor', 'Under consideration for expansion into premium organic lines', 'normal', retailerResult.rows[0].id]);
 
     // Add demo products
     await pool.query(`
       INSERT INTO brand_products (brand_id, name, description, category, sku, price, is_active) 
       VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `, [pureElementsBrand.rows[0].id, 'Organic Quinoa Bowls', 'Ready-to-eat organic quinoa bowls with seasonal vegetables', 'Prepared Foods', 'PE-QB-001', 12.99, true]);
+    `, [pureElementsBrand.rows[0].id, 'Organic Quinoa Bowls', 'Ready-to-eat organic quinoa bowls with seasonal vegetables and herbs', 'Prepared Foods', 'PE-QB-001', 12.99, true]);
+
+    await pool.query(`
+      INSERT INTO brand_products (brand_id, name, description, category, sku, price, is_active) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [pureElementsBrand.rows[0].id, 'Organic Superfood Smoothies', 'Cold-pressed organic superfood smoothies packed with nutrients', 'Beverages', 'PE-SM-002', 8.99, true]);
 
     await pool.query(`
       INSERT INTO brand_products (brand_id, name, description, category, sku, price, is_active) 
       VALUES ($1, $2, $3, $4, $5, $6, $7)
     `, [techFoodsBrand.rows[0].id, 'Smart Protein Bars', 'AI-optimized nutrition bars with personalized macro profiles', 'Snacks', 'TF-SPB-001', 4.99, true]);
+
+    await pool.query(`
+      INSERT INTO brand_products (brand_id, name, description, category, sku, price, is_active) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [craftBrand.rows[0].id, 'Artisan Ginger Fizz', 'Craft ginger soda with real ginger and organic cane sugar', 'Beverages', 'CB-GF-001', 3.49, true]);
 
     // Create notification preferences for all users
     const allUsers = [retailerResult.rows[0].id, retailer2Result.rows[0].id, brandResult.rows[0].id, brand2Result.rows[0].id];
@@ -558,13 +596,13 @@ app.post('/api/auth/login', [
         companyName: user.company_name,
         companyType: user.company_type
       },
-      process.env.JWT_SECRET || 'rollodex-secret-key',
+      process.env.JWT_SECRET || 'rollodx-secret-key',
       { expiresIn: '24h' }
     );
 
     await logActivity(user.id, 'LOGIN_SUCCESS', 'user', user.id, { ip: req.ip }, req);
 
-    logger.info('ROLLodex login successful', { userId: user.id, email });
+    logger.info('ROLLodx login successful', { userId: user.id, email });
 
     res.json({
       token,
@@ -583,7 +621,7 @@ app.post('/api/auth/login', [
     });
 
   } catch (error) {
-    logger.error('ROLLodex login error:', error);
+    logger.error('ROLLodx login error:', error);
     res.status(500).json({ 
       error: 'Login failed', 
       code: 'SERVER_ERROR'
@@ -655,13 +693,13 @@ app.post('/api/auth/register', [
         companyName,
         companyType
       },
-      process.env.JWT_SECRET || 'rollodex-secret-key',
+      process.env.JWT_SECRET || 'rollodx-secret-key',
       { expiresIn: '24h' }
     );
 
     await logActivity(userId, 'USER_REGISTERED', 'user', userId, { email, role }, req);
 
-    logger.info('ROLLodex user registered successfully', { userId, email, companyType });
+    logger.info('ROLLodx user registered successfully', { userId, email, companyType });
 
     res.json({
       token,
@@ -680,7 +718,7 @@ app.post('/api/auth/register', [
     });
 
   } catch (error) {
-    logger.error('ROLLodex registration error:', error);
+    logger.error('ROLLodx registration error:', error);
     res.status(500).json({ 
       error: 'Registration failed', 
       code: 'SERVER_ERROR'
@@ -733,6 +771,70 @@ app.get('/api/users/profile', authenticateToken, async (req, res) => {
   }
 });
 
+app.put('/api/users/profile', authenticateToken, [
+  body('firstName').optional().isLength({ min: 1 }).trim(),
+  body('lastName').optional().isLength({ min: 1 }).trim(),
+  body('phone').optional().trim(),
+  body('title').optional().trim()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        error: 'Validation failed', 
+        details: errors.array() 
+      });
+    }
+
+    const { firstName, lastName, phone, title } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE users 
+      SET first_name = COALESCE($1, first_name),
+          last_name = COALESCE($2, last_name),
+          phone = COALESCE($3, phone),
+          title = COALESCE($4, title),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $5 
+      RETURNING id, email, first_name, last_name, role, company_name, company_type, phone, title
+    `, [firstName, lastName, phone, title, req.user.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        error: 'User not found',
+        code: 'USER_NOT_FOUND'
+      });
+    }
+
+    await logActivity(req.user.id, 'PROFILE_UPDATED', 'user', req.user.id, { 
+      updatedFields: { firstName, lastName, phone, title } 
+    }, req);
+
+    const user = result.rows[0];
+    res.json({
+      message: 'Profile updated successfully',
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: user.role,
+        companyName: user.company_name,
+        companyType: user.company_type,
+        phone: user.phone,
+        title: user.title
+      }
+    });
+
+  } catch (error) {
+    logger.error('Profile update error:', error);
+    res.status(500).json({ 
+      error: 'Failed to update profile', 
+      code: 'SERVER_ERROR'
+    });
+  }
+});
+
 // BRAND ROUTES
 app.get('/api/brands', authenticateToken, async (req, res) => {
   try {
@@ -747,7 +849,7 @@ app.get('/api/brands', authenticateToken, async (req, res) => {
       LEFT JOIN users u ON b.owner_id = u.id
       LEFT JOIN brand_products p ON b.id = p.brand_id AND p.is_active = true
       LEFT JOIN brand_retailer_relationships r ON b.id = r.brand_id
-      WHERE 1=1
+      WHERE b.is_public = true
     `;
     
     const params = [];
@@ -776,7 +878,7 @@ app.get('/api/brands', authenticateToken, async (req, res) => {
     const result = await pool.query(query, params);
 
     // Get total count for pagination
-    let countQuery = 'SELECT COUNT(*) FROM brands b WHERE 1=1';
+    let countQuery = 'SELECT COUNT(*) FROM brands b WHERE b.is_public = true';
     const countParams = [];
     let countParamCount = 0;
 
@@ -795,6 +897,9 @@ app.get('/api/brands', authenticateToken, async (req, res) => {
     const countResult = await pool.query(countQuery, countParams);
     const totalCount = parseInt(countResult.rows[0].count);
 
+    // Log search activity
+    await logActivity(req.user.id, 'BRANDS_SEARCHED', 'brand', null, { search, industry, resultCount: result.rows.length }, req);
+
     res.json({
       brands: result.rows,
       pagination: {
@@ -808,6 +913,170 @@ app.get('/api/brands', authenticateToken, async (req, res) => {
 
   } catch (error) {
     logger.error('Brands fetch error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch brands', 
+      code: 'SERVER_ERROR'
+    });
+  }
+});
+
+app.get('/api/brands/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(`
+      SELECT b.*, u.company_name as owner_company, u.first_name, u.last_name, u.email as owner_email,
+             COUNT(DISTINCT p.id) as product_count,
+             COUNT(DISTINCT r.id) as relationship_count,
+             COUNT(DISTINCT a.id) as asset_count
+      FROM brands b
+      LEFT JOIN users u ON b.owner_id = u.id
+      LEFT JOIN brand_products p ON b.id = p.brand_id AND p.is_active = true
+      LEFT JOIN brand_retailer_relationships r ON b.id = r.brand_id
+      LEFT JOIN brand_assets a ON b.id = a.brand_id
+      WHERE b.id = $1 AND (b.is_public = true OR b.owner_id = $2)
+      GROUP BY b.id, u.company_name, u.first_name, u.last_name, u.email
+    `, [id, req.user.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        error: 'Brand not found or access denied',
+        code: 'BRAND_NOT_FOUND'
+      });
+    }
+
+    // Get products
+    const productsResult = await pool.query(`
+      SELECT * FROM brand_products 
+      WHERE brand_id = $1 AND is_active = true 
+      ORDER BY created_at DESC LIMIT 10
+    `, [id]);
+
+    // Get assets (if user has access)
+    const assetsResult = await pool.query(`
+      SELECT id, filename, original_name, file_type, file_size, description, category, 
+             permission_level, download_count, is_featured, created_at
+      FROM brand_assets 
+      WHERE brand_id = $1 
+      AND (permission_level = 'public' OR $2 = $3)
+      ORDER BY is_featured DESC, created_at DESC LIMIT 10
+    `, [id, req.user.id, result.rows[0].owner_id]);
+
+    await logActivity(req.user.id, 'BRAND_VIEWED', 'brand', parseInt(id), null, req);
+
+    res.json({
+      brand: result.rows[0],
+      products: productsResult.rows,
+      assets: assetsResult.rows
+    });
+
+  } catch (error) {
+    logger.error('Brand fetch error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch brand', 
+      code: 'SERVER_ERROR'
+    });
+  }
+});
+
+app.put('/api/brands/:id', authenticateToken, [
+  body('name').optional().isLength({ min: 1 }).trim(),
+  body('description').optional().trim(),
+  body('industry').optional().trim(),
+  body('website').optional().isURL(),
+  body('email').optional().isEmail(),
+  body('phone').optional().trim()
+], async (req, res) => {
+  try {
+    const { id } = req.params;
+    const errors = validationResult(req);
+    
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        error: 'Validation failed', 
+        details: errors.array() 
+      });
+    }
+
+    // Verify ownership
+    const brandCheck = await pool.query('SELECT owner_id FROM brands WHERE id = $1', [id]);
+    if (brandCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Brand not found' });
+    }
+    
+    if (brandCheck.rows[0].owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to edit this brand' });
+    }
+
+    const { name, description, industry, website, email, phone, address, city, state, country, postal_code } = req.body;
+    
+    // Calculate completion score
+    const fields = [name, description, industry, website, email, phone, address, city, state];
+    const completedFields = fields.filter(field => field && field.trim().length > 0).length;
+    const completion_score = Math.round((completedFields / fields.length) * 100);
+
+    const result = await pool.query(`
+      UPDATE brands 
+      SET name = COALESCE($1, name),
+          description = COALESCE($2, description),
+          industry = COALESCE($3, industry),
+          website = COALESCE($4, website),
+          email = COALESCE($5, email),
+          phone = COALESCE($6, phone),
+          address = COALESCE($7, address),
+          city = COALESCE($8, city),
+          state = COALESCE($9, state),
+          country = COALESCE($10, country),
+          postal_code = COALESCE($11, postal_code),
+          profile_completion_score = $12,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $13 
+      RETURNING *
+    `, [name, description, industry, website, email, phone, address, city, state, country, postal_code, completion_score, id]);
+
+    await logActivity(req.user.id, 'BRAND_UPDATED', 'brand', parseInt(id), { 
+      updatedFields: { name, description, industry, website, email, phone } 
+    }, req);
+
+    res.json({
+      message: 'Brand updated successfully',
+      brand: result.rows[0]
+    });
+
+  } catch (error) {
+    logger.error('Brand update error:', error);
+    res.status(500).json({ 
+      error: 'Failed to update brand', 
+      code: 'SERVER_ERROR'
+    });
+  }
+});
+
+// Get my brands (for brand owners)
+app.get('/api/brands/my/brands', authenticateToken, async (req, res) => {
+  try {
+    if (!req.user.role.includes('brand')) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const result = await pool.query(`
+      SELECT b.*, 
+             COUNT(DISTINCT p.id) as product_count,
+             COUNT(DISTINCT r.id) as relationship_count,
+             COUNT(DISTINCT a.id) as asset_count
+      FROM brands b
+      LEFT JOIN brand_products p ON b.id = p.brand_id AND p.is_active = true
+      LEFT JOIN brand_retailer_relationships r ON b.id = r.brand_id
+      LEFT JOIN brand_assets a ON b.id = a.brand_id
+      WHERE b.owner_id = $1
+      GROUP BY b.id
+      ORDER BY b.created_at DESC
+    `, [req.user.id]);
+
+    res.json({ brands: result.rows });
+
+  } catch (error) {
+    logger.error('My brands fetch error:', error);
     res.status(500).json({ 
       error: 'Failed to fetch brands', 
       code: 'SERVER_ERROR'
@@ -841,9 +1110,11 @@ app.post('/api/brands/:brandId/assets', authenticateToken, upload.array('files',
     const uploadedAssets = [];
 
     for (const file of req.files) {
+      const fileUrl = `/uploads/brands/${brandId}/${file.filename}`;
+      
       const assetResult = await pool.query(`
-        INSERT INTO brand_assets (brand_id, filename, original_name, file_type, file_size, file_path, description, category, permission_level, uploaded_by) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *
+        INSERT INTO brand_assets (brand_id, filename, original_name, file_type, file_size, file_path, file_url, description, category, permission_level, uploaded_by) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *
       `, [
         brandId,
         file.filename,
@@ -851,6 +1122,7 @@ app.post('/api/brands/:brandId/assets', authenticateToken, upload.array('files',
         file.mimetype,
         file.size,
         file.path,
+        fileUrl,
         description || null,
         category,
         permission_level,
@@ -883,6 +1155,92 @@ app.post('/api/brands/:brandId/assets', authenticateToken, upload.array('files',
   }
 });
 
+app.get('/api/brands/:brandId/assets', authenticateToken, async (req, res) => {
+  try {
+    const { brandId } = req.params;
+
+    // Check if user has access to this brand's assets
+    const brandResult = await pool.query('SELECT owner_id, is_public FROM brands WHERE id = $1', [brandId]);
+    if (brandResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Brand not found' });
+    }
+
+    const isOwner = brandResult.rows[0].owner_id === req.user.id;
+    const isPublicBrand = brandResult.rows[0].is_public;
+
+    let assetsQuery = `
+      SELECT * FROM brand_assets 
+      WHERE brand_id = $1 
+    `;
+    
+    if (!isOwner) {
+      if (isPublicBrand) {
+        assetsQuery += ` AND permission_level IN ('public', 'partners_only')`;
+      } else {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
+    assetsQuery += ` ORDER BY is_featured DESC, created_at DESC`;
+
+    const result = await pool.query(assetsQuery, [brandId]);
+
+    res.json({ assets: result.rows });
+
+  } catch (error) {
+    logger.error('Assets fetch error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch assets', 
+      code: 'SERVER_ERROR'
+    });
+  }
+});
+
+app.delete('/api/brands/:brandId/assets/:assetId', authenticateToken, async (req, res) => {
+  try {
+    const { brandId, assetId } = req.params;
+
+    // Verify ownership
+    const assetResult = await pool.query(`
+      SELECT a.*, b.owner_id 
+      FROM brand_assets a 
+      JOIN brands b ON a.brand_id = b.id 
+      WHERE a.id = $1 AND a.brand_id = $2
+    `, [assetId, brandId]);
+
+    if (assetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Asset not found' });
+    }
+
+    if (assetResult.rows[0].owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to delete this asset' });
+    }
+
+    // Delete file from disk
+    const filePath = assetResult.rows[0].file_path;
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    // Delete from database
+    await pool.query('DELETE FROM brand_assets WHERE id = $1', [assetId]);
+
+    await logActivity(req.user.id, 'ASSET_DELETED', 'brand_asset', parseInt(assetId), {
+      brandId: parseInt(brandId),
+      filename: assetResult.rows[0].original_name
+    }, req);
+
+    res.json({ message: 'Asset deleted successfully' });
+
+  } catch (error) {
+    logger.error('Asset deletion error:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete asset', 
+      code: 'SERVER_ERROR'
+    });
+  }
+});
+
 // ANALYTICS ROUTES
 app.get('/api/analytics/dashboard', authenticateToken, async (req, res) => {
   try {
@@ -895,13 +1253,15 @@ app.get('/api/analytics/dashboard', authenticateToken, async (req, res) => {
         [req.user.id]
       );
 
-      const downloadsResult = await pool.query(`
-        SELECT COUNT(*) as total_downloads
-        FROM brand_assets a
-        WHERE EXISTS (
-          SELECT 1 FROM brand_retailer_relationships r 
-          WHERE r.brand_id = a.brand_id AND r.retailer_id = $1
-        )
+      const totalBrandsResult = await pool.query(
+        'SELECT COUNT(DISTINCT brand_id) as total FROM brand_retailer_relationships WHERE retailer_id = $1',
+        [req.user.id]
+      );
+
+      const recentActivityResult = await pool.query(`
+        SELECT COUNT(*) as count 
+        FROM activity_log 
+        WHERE user_id = $1 AND created_at > NOW() - INTERVAL '7 days'
       `, [req.user.id]);
 
       stats.relationships = relationshipsResult.rows.reduce((acc, row) => {
@@ -909,7 +1269,8 @@ app.get('/api/analytics/dashboard', authenticateToken, async (req, res) => {
         return acc;
       }, {});
 
-      stats.totalDownloads = parseInt(downloadsResult.rows[0]?.total_downloads || 0);
+      stats.totalBrands = parseInt(totalBrandsResult.rows[0]?.total || 0);
+      stats.recentActivity = parseInt(recentActivityResult.rows[0]?.count || 0);
 
     } else if (req.user.role.includes('brand')) {
       // Brand analytics
@@ -966,11 +1327,16 @@ app.get('/api/relationships', authenticateToken, async (req, res) => {
       query = `
         SELECT r.*, b.name as brand_name, b.description as brand_description, 
                b.industry, b.website, b.profile_completion_score, b.is_verified,
-               u.first_name, u.last_name, u.email as brand_contact_email
+               u.first_name, u.last_name, u.email as brand_contact_email,
+               COUNT(DISTINCT p.id) as product_count,
+               COUNT(DISTINCT a.id) as asset_count
         FROM brand_retailer_relationships r
         JOIN brands b ON r.brand_id = b.id
         JOIN users u ON b.owner_id = u.id
+        LEFT JOIN brand_products p ON b.id = p.brand_id AND p.is_active = true
+        LEFT JOIN brand_assets a ON b.id = a.brand_id
         WHERE r.retailer_id = $1
+        GROUP BY r.id, b.id, b.name, b.description, b.industry, b.website, b.profile_completion_score, b.is_verified, u.first_name, u.last_name, u.email
         ORDER BY r.priority DESC, r.updated_at DESC
       `;
     } else {
@@ -981,8 +1347,8 @@ app.get('/api/relationships', authenticateToken, async (req, res) => {
                u.first_name, u.last_name, u.email as retailer_contact_email
         FROM brand_retailer_relationships r
         JOIN brands b ON r.brand_id = b.id
-        JOIN retailers ret ON r.retailer_id = ret.owner_id
-        JOIN users u ON ret.owner_id = u.id
+        LEFT JOIN retailers ret ON r.retailer_id = ret.owner_id
+        JOIN users u ON r.retailer_id = u.id
         WHERE b.owner_id = $1
         ORDER BY r.priority DESC, r.updated_at DESC
       `;
@@ -995,6 +1361,178 @@ app.get('/api/relationships', authenticateToken, async (req, res) => {
     logger.error('Relationships fetch error:', error);
     res.status(500).json({ 
       error: 'Failed to fetch relationships', 
+      code: 'SERVER_ERROR'
+    });
+  }
+});
+
+app.post('/api/relationships', authenticateToken, [
+  body('brandId').isInt(),
+  body('status').isIn(['prospective', 'pending', 'active', 'inactive']),
+  body('partnershipType').optional().trim(),
+  body('notes').optional().trim(),
+  body('priority').optional().isIn(['low', 'normal', 'high'])
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        error: 'Validation failed', 
+        details: errors.array() 
+      });
+    }
+
+    const { brandId, status, partnershipType, notes, priority = 'normal' } = req.body;
+
+    // Verify brand exists and is accessible
+    const brandResult = await pool.query('SELECT id FROM brands WHERE id = $1 AND is_public = true', [brandId]);
+    if (brandResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Brand not found or not accessible' });
+    }
+
+    // Check if relationship already exists
+    const existingResult = await pool.query(
+      'SELECT id FROM brand_retailer_relationships WHERE brand_id = $1 AND retailer_id = $2',
+      [brandId, req.user.id]
+    );
+
+    if (existingResult.rows.length > 0) {
+      return res.status(400).json({ error: 'Relationship already exists' });
+    }
+
+    const result = await pool.query(`
+      INSERT INTO brand_retailer_relationships (brand_id, retailer_id, status, partnership_type, notes, priority, created_by) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
+    `, [brandId, req.user.id, status, partnershipType, notes, priority, req.user.id]);
+
+    await logActivity(req.user.id, 'RELATIONSHIP_CREATED', 'brand_retailer_relationship', result.rows[0].id, {
+      brandId,
+      status,
+      partnershipType,
+      priority
+    }, req);
+
+    res.json({
+      message: 'Relationship created successfully',
+      relationship: result.rows[0]
+    });
+
+  } catch (error) {
+    logger.error('Relationship creation error:', error);
+    res.status(500).json({ 
+      error: 'Failed to create relationship', 
+      code: 'SERVER_ERROR'
+    });
+  }
+});
+
+app.put('/api/relationships/:id', authenticateToken, [
+  body('status').optional().isIn(['prospective', 'pending', 'active', 'inactive']),
+  body('partnershipType').optional().trim(),
+  body('notes').optional().trim(),
+  body('priority').optional().isIn(['low', 'normal', 'high'])
+], async (req, res) => {
+  try {
+    const { id } = req.params;
+    const errors = validationResult(req);
+    
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        error: 'Validation failed', 
+        details: errors.array() 
+      });
+    }
+
+    // Verify ownership
+    const relationshipResult = await pool.query(
+      'SELECT * FROM brand_retailer_relationships WHERE id = $1 AND retailer_id = $2',
+      [id, req.user.id]
+    );
+
+    if (relationshipResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Relationship not found or access denied' });
+    }
+
+    const { status, partnershipType, notes, priority, startedDate } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE brand_retailer_relationships 
+      SET status = COALESCE($1, status),
+          partnership_type = COALESCE($2, partnership_type),
+          notes = COALESCE($3, notes),
+          priority = COALESCE($4, priority),
+          started_date = COALESCE($5, started_date),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $6 
+      RETURNING *
+    `, [status, partnershipType, notes, priority, startedDate, id]);
+
+    await logActivity(req.user.id, 'RELATIONSHIP_UPDATED', 'brand_retailer_relationship', parseInt(id), {
+      updatedFields: { status, partnershipType, notes, priority }
+    }, req);
+
+    res.json({
+      message: 'Relationship updated successfully',
+      relationship: result.rows[0]
+    });
+
+  } catch (error) {
+    logger.error('Relationship update error:', error);
+    res.status(500).json({ 
+      error: 'Failed to update relationship', 
+      code: 'SERVER_ERROR'
+    });
+  }
+});
+
+app.delete('/api/relationships/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verify ownership
+    const relationshipResult = await pool.query(
+      'SELECT brand_id FROM brand_retailer_relationships WHERE id = $1 AND retailer_id = $2',
+      [id, req.user.id]
+    );
+
+    if (relationshipResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Relationship not found or access denied' });
+    }
+
+    await pool.query('DELETE FROM brand_retailer_relationships WHERE id = $1', [id]);
+
+    await logActivity(req.user.id, 'RELATIONSHIP_DELETED', 'brand_retailer_relationship', parseInt(id), {
+      brandId: relationshipResult.rows[0].brand_id
+    }, req);
+
+    res.json({ message: 'Relationship deleted successfully' });
+
+  } catch (error) {
+    logger.error('Relationship deletion error:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete relationship', 
+      code: 'SERVER_ERROR'
+    });
+  }
+});
+
+// Get available industries for filtering
+app.get('/api/industries', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT industry 
+      FROM brands 
+      WHERE industry IS NOT NULL AND industry != '' 
+      ORDER BY industry
+    `);
+
+    const industries = result.rows.map(row => row.industry);
+    res.json({ industries });
+
+  } catch (error) {
+    logger.error('Industries fetch error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch industries', 
       code: 'SERVER_ERROR'
     });
   }
@@ -1016,7 +1554,7 @@ if (process.env.NODE_ENV === 'production') {
 
 // 404 handler for API routes only
 app.use('/api/*', (req, res) => {
-  logger.warn('ROLLodex API route not found', { path: req.path, method: req.method });
+  logger.warn('ROLLodx API route not found', { path: req.path, method: req.method });
   res.status(404).json({
     error: 'API endpoint not found',
     path: req.originalUrl
@@ -1025,7 +1563,7 @@ app.use('/api/*', (req, res) => {
 
 // Global error handler
 app.use((error, req, res, next) => {
-  logger.error('ROLLodex global error handler:', error);
+  logger.error('ROLLodx global error handler:', error);
 
   // Multer errors
   if (error.code === 'LIMIT_FILE_SIZE') {
@@ -1036,7 +1574,7 @@ app.use((error, req, res, next) => {
     return res.status(400).json({ error: 'Too many files. Maximum is 10 files.' });
   }
 
-  if (error.message === 'Invalid file type. Only images, PDFs, and documents allowed.') {
+  if (error.message && error.message.includes('Invalid file type')) {
     return res.status(400).json({ error: error.message });
   }
 
@@ -1057,38 +1595,38 @@ app.use((error, req, res, next) => {
 
 // Start server
 const server = app.listen(PORT, async () => {
-  logger.info(`🚀 ROLLodex API server running on port ${PORT}`);
+  logger.info(`🚀 ROLLodx API server running on port ${PORT}`);
   logger.info(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   logger.info(`🔗 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
   
   try {
     // Initialize database
     await initDatabase();
-    logger.info('🎉 ROLLodex API is ready and running!');
+    logger.info('🎉 ROLLodx API is ready and running!');
   } catch (error) {
-    logger.error('Failed to initialize ROLLodex database:', error);
+    logger.error('Failed to initialize ROLLodx database:', error);
     // Don't exit, let it try to connect later
   }
 });
 
 // Graceful shutdown
 const gracefulShutdown = async (signal) => {
-  logger.info(`${signal} received, shutting down ROLLodex API gracefully`);
+  logger.info(`${signal} received, shutting down ROLLodx API gracefully`);
   
   server.close(async () => {
     try {
       await pool.end();
-      logger.info('ROLLodex database connections closed');
+      logger.info('ROLLodx database connections closed');
       process.exit(0);
     } catch (error) {
-      logger.error('Error during ROLLodex shutdown:', error);
+      logger.error('Error during ROLLodx shutdown:', error);
       process.exit(1);
     }
   });
 
   // Force close after 10 seconds
   setTimeout(() => {
-    logger.error('Could not close ROLLodex connections in time, forcefully shutting down');
+    logger.error('Could not close ROLLodx connections in time, forcefully shutting down');
     process.exit(1);
   }, 10000);
 };
